@@ -1,3 +1,5 @@
+use std::ops::Add;
+
 use ansi_term::Colour;
 
 
@@ -11,34 +13,6 @@ impl Move {
 
     pub fn new(row: usize, col: usize) -> Move {
         Move { row, col }
-    }
-
-    pub fn to_string_on_board(&self, board: &Board) -> Result<String, String> {
-        let player = match board.get_active_player() {
-            Some(player) => player,
-            None => return Err("Game is already over".to_string()),
-        };
-        let maybe_board = board.with_move_made(player, *self);
-        let final_board = match maybe_board {
-            Ok(b) => b,
-            Err(_) => {return Err("Invalid move".to_string());},
-        };
-        let mut to_print = "".to_string();
-        for row in 0..3 {
-            for col in 0..3 {
-                if row == self.row && col == self.col {
-                    to_print.push_str(&(Colour::Green.prefix().to_string() + &player.to_string() + &Colour::Green.suffix().to_string()));
-                } else if final_board.x_bitboard.is_set(row, col) {
-                    to_print.push_str("X");
-                } else if final_board.o_bitboard.is_set(row, col) {
-                    to_print.push_str("O");
-                } else {
-                    to_print.push_str("_");
-                }
-            }
-            to_print.push_str("\n");
-        }
-        return Ok(to_print.trim_end().to_string());
     }
 
     pub fn get_row(&self) -> usize {
@@ -76,158 +50,218 @@ impl Move {
 
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Board {
-    x_bitboard: Bitboard,
-    o_bitboard: Bitboard,
+    columns: Vec<Vec<Square>>,
 }
 
 impl Board {
 
     pub fn empty() -> Board {
         Board {
-            x_bitboard: Bitboard::empty(),
-            o_bitboard: Bitboard::empty(),
-        }
-    }
-
-    pub fn to_string(&self) -> String {
-        let mut to_return = "".to_string();
-        for row in 0..3 {
-            for col in 0..3 {
-                if self.x_bitboard.is_set(row, col) {
-                    to_return += "X";
-                } else if self.o_bitboard.is_set(row, col) {
-                    to_return += "O";
-                } else {
-                    to_return += "_";
-                }
-            }
-            to_return += "\n";
-        }
-        return to_return.trim_end().to_string();
-    }
-
-    pub fn to_string_with_square_highlighted(&self, row: usize, col: usize) -> String {
-        let mut to_return = "".to_string();
-        for r in 0..3 {
-            for c in 0..3 {
-                let to_add = if self.x_bitboard.is_set(r, c) {
-                    "X"
-                } else if self.o_bitboard.is_set(r, c) {
-                    "O"
-                } else {
-                    "_"
-                };
-                if r == row && c == col {
-                    to_return += &(Colour::Green.prefix().to_string() + &to_add.to_string() + &Colour::Green.suffix().to_string());
-                } else {
-                    to_return += &to_add;
-                }
-            }
-            to_return += "\n";
-        }
-        return to_return.trim_end().to_string();
-    }
-    
-    pub fn new(x_bitboard: Bitboard, o_bitboard: Bitboard) -> Board {
-        Board { x_bitboard, o_bitboard }
-    }
-
-    pub fn from_position(position: &str) -> Result<Self, String> {
-        let mut x_bitboard = Bitboard::empty();
-        let mut o_bitboard = Bitboard::empty();
-        let mut row = 0;
-        let mut col = 0;
-        let stripped_position = position.chars().filter(|c| !c.is_whitespace()).collect::<String>();
-        if stripped_position.len() != 9 {
-            return Err(format!("Invalid position string: {}", position));
-        }
-        for c in stripped_position.chars() {
-            match c {
-                'X' => x_bitboard.set(col, row),
-                'O' => o_bitboard.set(col, row),
-                '_' => (),
-                _ => return Err(format!("Invalid character: {}", c)),
-            };
-            if row == 2 {
-                row = 0;
-                col += 1;
-            } else {
-                row += 1;
-            }
-        }
-        Ok(Board::new(x_bitboard, o_bitboard))
-    }
-
-    pub fn get_outcome(&self) -> Outcome {
-        let mut x_victory = false;
-        let mut o_victory = false;
-
-        x_victory = self.x_bitboard.is_victory();
-        o_victory = self.o_bitboard.is_victory();
-
-        match (self.is_full(), x_victory, o_victory) {
-            (_, true, true) => Outcome::Ambiguous,
-            (_, true, false) => Outcome::Victory(Player::X),
-            (_, false, true) => Outcome::Victory(Player::O),
-            (true, false, false) => Outcome::Draw,
-            (false, false, false) => Outcome::InProgress,
+            columns: vec![
+                vec![Square::Empty, Square::Empty, Square::Empty],
+                vec![Square::Empty, Square::Empty, Square::Empty],
+                vec![Square::Empty, Square::Empty, Square::Empty],
+            ],
         }
     }
 
     pub fn is_full(&self) -> bool {
-        self.x_bitboard.union(&self.o_bitboard) == Bitboard::full()
+        self.get_elements().iter().all(|square| *square != Square::Empty)
     }
 
-    fn is_set(&self, row: usize, col: usize) -> bool {
-        self.x_bitboard.is_set(row, col) || self.o_bitboard.is_set(row, col)
-    }
-
-    pub fn make_move(&mut self, player: Player, m: Move) -> Result<(), String> {
-        if self.get_active_player() != Some(player) {
-            return Err(format!("It is not {}'s turn", player.to_string()));
-        };
-        if self.is_set(m.get_row(), m.get_column()) {
-            return Err(format!("Move {} has already been made", m.to_string()));
+    fn get_elements(&self) -> Vec<Square> {
+        let mut elements = Vec::new();
+        for column in self.columns.iter() {
+            for element in column {
+                elements.push(*element);
+            }
         }
-        match player {
-            Player::X => self.x_bitboard.set(m.row, m.col),
-            Player::O => self.o_bitboard.set(m.row, m.col),
-        }
-        return Ok(());
+        elements
     }
 
-    pub fn with_move_made(&self, player: Player, m: Move) -> Result<Self, String> {
-        let mut new_board = self.clone();
-        new_board.make_move(player, m)?;
-        Ok(new_board)
-    }
-
-    pub fn get_active_player(&self) -> Option<Player> {
-        if self.get_outcome() != Outcome::InProgress {
-            return None;
-        }
-        
-        if self.x_bitboard.n_set() == self.o_bitboard.n_set() {
-            Some(Player::X)
-        } else {
-            Some(Player::O)
-        }
-    }
-
-    pub fn get_legal_moves(&self) -> Vec<Move> {
-        let mut moves = Vec::new();
-        for row in 0..3 {
-            for col in 0..3 {
-                if !self.is_set(row, col) {
-                    moves.push(Move::new(row, col));
+    pub fn to_string(&self) -> String {
+        let mut row_strings: Vec<String> = vec![
+            "".to_string(),
+            "".to_string(),
+            "".to_string(),
+        ];
+        for column in self.columns.iter() {
+            let mut row_n = 0;
+            for element in column {
+                row_strings[row_n] += &element.to_string();
+                if row_n == 2 {
+                    row_n = 0;
+                } else {
+                    row_n += 1;
                 }
             }
         }
-        moves
+        return row_strings.join("\n");
+    }
+
+    pub fn from_string(s: String) -> Result<Self, String> {
+        let mut board = Board::empty();
+        let mut row_n = 0;
+        let stripped_s = s.chars().filter(|c| !(c == &' ' || c == &'\t')).collect::<String>();
+        for row in stripped_s.split("\n") {
+            let mut col_n = 0;
+            for element in row.chars() {
+                match Square::from_char(element) {
+                    Ok(square) => board.columns[col_n][row_n] = square,
+                    Err(e) => return Err(e),
+                };
+                col_n += 1;
+            }
+            row_n += 1;
+        }
+        return Ok(board)
+    }
+
+    pub fn sum(&self) -> u16 {
+        let mut sum = 0;
+        let mut column_index = 0;
+        for column in self.columns.iter() {
+            let mut column_sum = 0;
+            for element in column {
+                match element {
+                    Square::Empty => (),
+                    Square::Die(die) => column_sum += die.to_value(),
+                }
+            }
+            column_sum = column_sum * self.get_column_multiplicity(column_index);
+            sum += column_sum;
+            column_index += 1;
+        }
+        return sum;
+    }
+
+    pub fn get_column_multiplicity(&self, column_index: usize) -> u16 {
+        let column = &self.columns[column_index];
+        if (column[0] != Square::Empty) && (column[0] == column[1]) && (column[1] == column[2]) {
+            return 3;
+        }
+        if  ((column[0] != Square::Empty) && (column[0] == column[1])) ||
+            ((column[1] != Square::Empty) && (column[1] == column[2])) ||
+            ((column[0] != Square::Empty) && (column[0] == column[2])) {
+            return 2;
+        }
+        return 1;
+    }
+
+    pub fn to_string_with_square_highlighted(&self, row: usize, col: usize) -> String {
+        unimplemented!()
     }
     
+    pub fn new(x_bitboard: Bitboard, o_bitboard: Bitboard) -> Board {
+        unimplemented!()
+    }
+
+    fn is_set(&self, row: usize, col: usize) -> bool {
+        unimplemented!()
+    }
+
+    pub fn make_move(&mut self, player: Player, m: Move) -> Result<(), String> {
+        unimplemented!()
+    }
+
+    pub fn with_move_made(&self, player: Player, m: Move) -> Result<Self, String> {
+        unimplemented!()
+    }
+
+    pub fn get_active_player(&self) -> Option<Player> {
+        unimplemented!()
+    }
+
+    pub fn get_legal_moves(&self) -> Vec<Move> {
+        unimplemented!()
+    }
+    
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Square {
+    Empty,
+    Die(Die),
+}
+
+impl Square {
+
+    pub fn to_string(&self) -> String {
+        match self {
+            Self::Empty => "_".to_string(),
+            Self::Die(die) => die.to_string(),
+        }
+    }
+
+    pub fn from_char(c: char) -> Result<Self, String> {
+        match c {
+            '_' => Ok(Self::Empty),
+            c => Die::from_char(c).map(|x| Self::Die(x)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Die {
+    One,
+    Two,
+    Three,
+    Four,
+    Five,
+    Six,
+}
+
+impl Add for Die {
+    type Output = u16;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        self.to_value() + rhs.to_value()
+    }
+}
+
+impl Die {
+
+    pub fn new(value: u8) -> Result<Die, String> {
+        match value {
+            1 => Ok(Die::One),
+            2 => Ok(Die::Two),
+            3 => Ok(Die::Three),
+            4 => Ok(Die::Four),
+            5 => Ok(Die::Five),
+            6 => Ok(Die::Six),
+            _ => return Err(format!("Invalid die value: {}", value)),
+        }
+    }
+
+    pub fn to_value(&self) -> u16 {
+        match self {
+            Die::One => 1,
+            Die::Two => 2,
+            Die::Three => 3,
+            Die::Four => 4,
+            Die::Five => 5,
+            Die::Six => 6,
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        self.to_value().to_string()
+    }
+
+    pub fn from_char(c: char) -> Result<Die, String> {
+        match c {
+            '1' => Ok(Die::One),
+            '2' => Ok(Die::Two),
+            '3' => Ok(Die::Three),
+            '4' => Ok(Die::Four),
+            '5' => Ok(Die::Five),
+            '6' => Ok(Die::Six),
+            _ => Err(format!("Invalid die character: {}", c).to_string()),
+        }
+    }
+
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -336,16 +370,16 @@ impl Outcome {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Player {
-    X,
-    O,
+    Player1,
+    Player2,
 }
 
 impl Player {
 
     pub fn to_string(&self) -> String {
         match self {
-            Player::X => "X".to_string(),
-            Player::O => "O".to_string(),
+            Player::Player1 => "Player 1".to_string(),
+            Player::Player2 => "Player 2".to_string(),
         }
     }
 }
@@ -355,197 +389,59 @@ mod test_board_tests {
     use super::*;
 
     #[test]
+    fn test_dice_add() {
+        let die_1 = Die::new(4).unwrap();
+        let die_2 = Die::new(5).unwrap();
+        assert_eq!(die_1 + die_2, 9);
+    }
+
+    #[test]
     fn test_board_instantiates() {
+        let b = Board::empty();
+        assert_eq!(b.to_string(), "___\n___\n___");
+
+        let b = Board::from_string("5__\n__2\n___".to_string()).unwrap();
+        assert_eq!(b.to_string(), "5__\n__2\n___");
+    }
+
+    #[test]
+    fn test_board_sums() {
+        let b = Board::empty();
+        assert_eq!(b.sum(), 0);
+
+        let b = Board::from_string("5__\n__2\n___".to_string()).unwrap();
+        assert_eq!(b.sum(), 7);
+
+        let b = Board::from_string("5__\n5_2\n1__".to_string()).unwrap();
+        assert_eq!(b.sum(), 24);
+
+        let b = Board::from_string("4_2\n5_2\n1_2".to_string()).unwrap();
+        assert_eq!(b.sum(), 28);
+
+        let b = Board::from_string("412\n542\n162".to_string()).unwrap();
+        assert_eq!(b.sum(), 39);
         
-        let board = Board::from_position(
-            "___
-            ___
-            _O_",
-        ).unwrap();
-        assert_eq!(board, Board::new(Bitboard::empty(), Bitboard::from_binary("000000010").unwrap()));
     }
 
     #[test]
-    fn test_board_determines_winner() {
-        assert_eq!(Board::from_position(
-            "XOX
-            OXO
-            XOX",
-        ).unwrap().get_outcome(), Outcome::Victory(Player::X));
+    fn test_board_is_full() {
+        let b = Board::empty();
+        assert_eq!(b.is_full(), false);
 
-        assert_eq!(Board::from_position(
-            "XOX
-            OOO
-            _XX",
-        ).unwrap().get_outcome(), Outcome::Victory(Player::O));
+        let b = Board::from_string("5__\n__2\n___".to_string()).unwrap();
+        assert_eq!(b.is_full(), false);
 
-        
-        assert_eq!(Board::from_position(
-            "XOX
-            XXO
-            OXO",
-        ).unwrap().get_outcome(), Outcome::Draw);
+        let b = Board::from_string("5__\n5_2\n1__".to_string()).unwrap();
+        assert_eq!(b.is_full(), false);
 
-        
-        assert_eq!(Board::from_position(
-            "XOX
-            ___
-            ___",
-        ).unwrap().get_outcome(), Outcome::InProgress);
-
-        assert_eq!(Board::from_position(
-            "XXX
-            ___
-            OOO",
-        ).unwrap().get_outcome(), Outcome::Ambiguous);
-
-    }
-
-    #[test]
-    fn test_bitboard_instantiates() {
-        let mut bitboard = Bitboard::empty();
-        assert_eq!(bitboard, Bitboard(0));
-        bitboard.set(1, 2);
-        bitboard.set(2, 2);
-        assert_eq!(bitboard, Bitboard::from_binary("000001001").unwrap());
-
-        let mut bitboard_2 = Bitboard::empty();
-        bitboard_2.set(2, 1);
-        assert_eq!(bitboard_2, Bitboard(2));
-
-        let mut other_bitboard = Bitboard::from_binary("110000001").unwrap();
-        let combined_bitboard = bitboard.union(&other_bitboard);
-        assert_eq!(combined_bitboard, Bitboard::from_binary("110001001").unwrap());
-
-        let intersected_bitboard = bitboard.intersection(&other_bitboard);
-        assert_eq!(intersected_bitboard, Bitboard::from_binary("000000001").unwrap());
-    }
-
-    #[test]
-    fn test_board_moves() {
-        let mut board = Board::from_position(
-            "___
-            ___
-            ___",
-        ).unwrap();
-        assert_eq!(board.make_move(Player::X, Move::new(2, 1)), Ok(()));
-        assert_eq!(
-            board,
-            Board::from_position(
-                "___
-                ___
-                _X_",
-            ).unwrap()
-        );
-    }
-
-    #[test]
-    fn test_board_pretty_prints() {
-        let board = Board::from_position(
-            "___
-            ___
-            ___",
-        ).unwrap();
-        assert_eq!(board.to_string(),
-        "___\n___\n___".to_string()
-        );
-
-        let board = Board::from_position(
-            "XOX
-            OXO
-            XOX",
-        ).unwrap();
-        assert_eq!(
-            board.to_string(),
-            "XOX\nOXO\nXOX".to_string());
-    }
-
-    fn test_board_gets_active_player() {
-        let board = Board::from_position(
-            "___
-            ___
-            ___",
-        ).unwrap();
-        assert_eq!(board.get_active_player(), Some(Player::X));
-
-        let board = Board::from_position(
-            "___
-            ___
-            _X_",
-        ).unwrap();
-        assert_eq!(board.get_active_player(), Some(Player::O));
-
-        let board = Board::from_position(
-            "XOX
-            O_O
-            XOX",
-        ).unwrap();
-        assert_eq!(board.get_active_player(), Some(Player::X));
-
-        let board = Board::from_position(
-            "X_X
-            OOO
-            X__",
-        ).unwrap();
-        assert_eq!(board.get_active_player(), None);
-
-        
-        let board = Board::from_position(
-            "XOX
-            OXO
-            XOX",
-        ).unwrap();
-        assert_eq!(board.get_active_player(), None);
-
-    }
-
-    #[test]
-    fn test_board_gets_legal_moves() {
-        let board = Board::from_position(
-            "___
-            ___
-            ___",
-        ).unwrap();
-        assert_eq!(board.get_legal_moves(), vec![Move::new(0, 0), Move::new(0, 1), Move::new(0, 2), Move::new(1, 0), Move::new(1, 1), Move::new(1, 2), Move::new(2, 0), Move::new(2, 1), Move::new(2, 2)]);
-
-        let board = Board::from_position(
-            "XOX
-            OXO
-            XOX",
-        ).unwrap();
-        assert_eq!(board.get_legal_moves(), vec![]);
-
-        let board = Board::from_position(
-            "XOX
-            OXO
-            O_X",
-        ).unwrap();
-        assert_eq!(board.get_legal_moves(), vec![Move::new(2, 1)]);
-
-        let board = Board::from_position(
-            "XOX
-            _X_
-            __O",
-        ).unwrap();
-        assert_eq!(board.get_legal_moves(), vec![Move::new(1, 0), Move::new(1, 2), Move::new(2, 0), Move::new(2, 1)]);
+        let b = Board::from_string("412\n542\n162".to_string()).unwrap();
+        assert_eq!(b.is_full(), true);
     }
 
     #[test]
     fn test_move_instantiates() {
         let m = Move::from_string("1 2").unwrap();
         assert_eq!(m, Move::new(1, 2));
-    }
-
-    #[test]
-    fn test_board_pretty_prints_with_square_highlighted() {
-        let board = Board::from_position(
-            "__X
-            ___
-            ___",
-        ).unwrap();
-        assert_eq!(board.to_string_with_square_highlighted(0, 2), 
-            "__\u{1b}[32mX\u{1b}[0m\n___\n___".to_string()
-        );
     }
 
 
