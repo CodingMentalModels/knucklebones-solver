@@ -159,23 +159,53 @@ impl Board {
     }
 
     fn is_set(&self, row: usize, col: usize) -> bool {
-        unimplemented!()
+        match self.columns[col][row] {
+            Square::Empty => false,
+            Square::Die(_) => true,
+        }
     }
 
-    pub fn make_move(&mut self, player: Player, m: Move) -> Result<(), String> {
-        unimplemented!()
+    pub fn make_move(&mut self, die: Die, m: Move) -> Result<(), String> {
+        if self.is_set(m.get_row(), m.get_column()) {
+            return Err(format!("Square already set: {:?}", m));
+        }
+        self.columns[m.get_column()][m.get_row()] = Square::Die(die);
+        return Ok(());
     }
 
-    pub fn with_move_made(&self, player: Player, m: Move) -> Result<Self, String> {
-        unimplemented!()
+    pub fn with_move_made(&self, die: Die, m: Move) -> Result<Self, String> {
+        let mut new_board = self.clone();
+        let result = new_board.make_move(die, m);
+        return result.map(|_| new_board);
     }
 
-    pub fn get_active_player(&self) -> Option<Player> {
-        unimplemented!()
+    pub fn get_empty_squares(&self) -> Vec<(usize, usize)> {
+        let mut rows = vec![
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        ];
+        for (col_n, column) in self.columns.iter().enumerate() {
+            for (row_n, square) in column.iter().enumerate() {
+                if *square == Square::Empty {
+                    rows[row_n].push((row_n, col_n));
+                }
+            }
+        }
+        return rows.into_iter().flatten().collect();
     }
 
-    pub fn get_legal_moves(&self) -> Vec<Move> {
-        unimplemented!()
+    pub fn get_empty_squares_up_to_row_symmetry(&self) -> Vec<(usize, usize)> {
+        let mut empty_squares = Vec::new();
+        for (col_n, column) in self.columns.iter().enumerate() {
+            for (row_n, square) in column.iter().enumerate() {
+                if *square == Square::Empty {
+                    empty_squares.push((row_n, col_n));
+                    break;
+                }
+            }
+        }
+        return empty_squares;
     }
     
 }
@@ -244,6 +274,10 @@ impl Die {
             Die::Five => 5,
             Die::Six => 6,
         }
+    }
+
+    pub fn all() -> Vec<Die> {
+        vec![Die::One, Die::Two, Die::Three, Die::Four, Die::Five, Die::Six]
     }
 
     pub fn to_string(&self) -> String {
@@ -353,7 +387,6 @@ pub enum Outcome {
     Victory(Player),
     Draw,
     InProgress,
-    Ambiguous,
 }
 
 impl Outcome {
@@ -363,7 +396,6 @@ impl Outcome {
             Outcome::Victory(player) => format!("{} wins", player.to_string()),
             Outcome::Draw => "Draw".to_string(),
             Outcome::InProgress => "Game in progress".to_string(),
-            Outcome::Ambiguous => "Ambiguous".to_string(),
         }
     }
 }
@@ -380,6 +412,13 @@ impl Player {
         match self {
             Player::Player1 => "Player 1".to_string(),
             Player::Player2 => "Player 2".to_string(),
+        }
+    }
+
+    pub fn opponent(&self) -> Self {
+        match self {
+            Player::Player1 => Player::Player2,
+            Player::Player2 => Player::Player1,
         }
     }
 }

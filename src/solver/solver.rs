@@ -1,8 +1,8 @@
 use crate::board::board::{Board, Move, Outcome, Player};
-use crate::tree::tree::{Tree, Node};
+use crate::tree::tree::{Node};
 
 pub struct Solver {
-    tree: Tree,
+    tree: Node,
 }
 
 impl Solver {

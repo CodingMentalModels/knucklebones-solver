@@ -32,7 +32,22 @@ ___"
 ### Build the game tree
 
 * Build the tree in a way that prunes bad branches and reduces the scale of overall tree to something many orders of magnitude less than 6^18*(9!)^2.  
-* Alpha-beta search?  
+* Notice that the game is symmetric along columns -- i.e. you can pick any row to put a given die in in a given column and the resulting position is equivalent.
+* Three possible approaches:
+    * Based on the current decision point, eliminate dominated strategies and then continue constructing the tree.  Only works if:
+        * There's a reliable way to identify dominated strategies
+        * Removing dominated strategies results in a small enough tree -- This failes to be true since 6^17 is huge.  
+    * Build the subtree n moves out and then heuristically evaluate the positions.  
+        * Need to pick a depth
+        * Need a heuristic -- Considerations:
+            * What's the value of the die?
+            * Does this die double or triple a column?
+            * Does this die eliminate opponents' dice and if so, how many?
+            * Is the game about to end?
+    * Regret Minimization -- Run N iterations of the game and after each one update the player's strategies to use the one that performed the least badly against opponent's maximally exploitive strategy.    
+* Let's go with the heuristic-based approach, with the following heuristic:
+    * If we can brute force the game, i.e. we're some small number of moves from the end (perhaps 3 moves per player, which makes the tree < 6^6*(3!)^2 nodes, which should be managable).
+    * Heuristic = difference between the player's score and opponent's score, assuming that each empty space is populated with an average die (3.5)
 
 ### Solve the game
 
