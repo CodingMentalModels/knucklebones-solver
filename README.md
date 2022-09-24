@@ -49,6 +49,14 @@ ___"
     * If we can brute force the game, i.e. we're some small number of moves from the end (perhaps 3 moves per player, which makes the tree < 6^6*(3!)^2 nodes, which should be managable).
     * Heuristic = difference between the player's score and opponent's score, assuming that each empty space is populated with an average die (3.5)
 
+
+Tricky Case:
+How should we compare the following moves?
+* Move 1: Half of opponent's rolls lead to forced win for us, half lead to an evaluation (heuristic) of 0.
+* Move 2: All of opponent's rolls lead to evaluation of +N (we're winning by N).
+
+Unclear what N should be to make us indifferent, but this should happen very rarely and when it does it will usually be extremely clear how we should compare the cases (e.g. eliminating 3 opponent's 5s vs. tripling our on 5s is clearly better).  So, let's give a bonus of 3 to forced winning line.
+
 ### Solve the game
 
 ### Expose a Command Line Interface to allow a user to solve the game from any position

@@ -1,6 +1,6 @@
 use crate::board::board::{Board, Move, Outcome, Player, Die};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Node {
     player_1_board: Board,
     player_2_board: Board,
@@ -97,11 +97,91 @@ impl Node {
             NodeType::Roll(_) => {
                 self.add_rolls().expect("Won't error because we're in a Roll node type.");
             },
-            NodeType::Move(player, die) => {
+            NodeType::Move(_, _) => {
                 let legal_moves = self.get_legal_moves_up_to_row_symmetry().expect("Won't error because we're in a Move node type.");
                 for m in legal_moves {
                     self.add_move(m).expect("Won't error because we know the moves are legal.");
                 }
+            },
+        }
+    }
+
+    pub fn build_entire_tree_up_to_symmetry(&mut self) {
+        if self.is_game_over() {
+            return;
+        }
+        self.generate_children_up_to_symmetry();
+        for child in self.children.iter_mut() {
+            child.build_entire_tree_up_to_symmetry();
+        }
+    }
+
+    pub fn get_next_moves_and_evaluation(&self, objective_function: fn(&Node) -> f32) -> Result<(Vec<Move>, f32), String> {
+        let player = match self.node_type {
+            NodeType::Roll(_) => {
+                return Err("Cannot get next moves and evaluation from a roll node".to_string());
+            },
+            NodeType::Move(player, _) => player,
+        };
+        let n_children = self.get_n_children();
+        if self.is_game_over() {
+            return Ok((Vec::new(), objective_function(self)));
+        }
+
+        let legal_moves = self.get_legal_moves_up_to_row_symmetry()
+            .expect("Won't error because we're in a Move node type.");
+        let mut best_evaluation = match player {
+            Player::Player1 => f32::NEG_INFINITY,
+            Player::Player2 => f32::INFINITY,
+        };
+        let mut next_moves = Vec::new();
+        for next_move in legal_moves {
+            let child_roll_node = self.children.iter()
+                .find(
+                    |child| *child.clone() == self.with_move_made(next_move).expect("We know we're on a move node.")
+                ).expect("We know the move is legal.");
+            if child_roll_node.is_game_over() {
+                return Ok((vec![next_move], objective_function(child_roll_node)));
+            }
+            let mut average_evaluation = 0.;
+            let average_denominator = child_roll_node.get_n_children() as f32;
+            for child_move_node in child_roll_node.children.iter() {
+                let (_, child_evaluation) = child_move_node
+                    .get_next_moves_and_evaluation(objective_function)
+                    .expect("Won't error because we're in a Move node type.");
+                average_evaluation += child_evaluation / average_denominator;
+            }
+            if player == Player::Player1 && average_evaluation >= best_evaluation {
+                best_evaluation = average_evaluation;
+                next_moves.push(next_move);
+            } else if player == Player::Player2 && average_evaluation <= best_evaluation {
+                best_evaluation = average_evaluation;
+                next_moves.push(next_move);
+            }
+        }
+        return Ok((next_moves, best_evaluation));
+    }
+
+    pub fn with_move_made(&self, m: Move) -> Result<Node, String> {
+        match self.node_type {
+            NodeType::Roll(_) => {
+                return Err("Cannot make a move from a roll node".to_string());
+            },
+            NodeType::Move(player, die) => {
+                let next_player = player.opponent();
+                let current_players_board = match self.get_player_board(player).with_move_made(die, m) {
+                    Ok(board) => board,
+                    Err(e) => return Err(e),
+                };
+                let next_players_board = self.get_player_board(next_player).eliminate(die, m.get_column());
+                return Ok(
+                    Node::from_player_and_boards(
+                        next_player,
+                        next_players_board,
+                        current_players_board,
+                        NodeType::Roll(next_player)
+                    )
+                );
             },
         }
     }
@@ -133,24 +213,17 @@ impl Node {
 
     pub fn add_move(&mut self, next_move: Move) -> Result<(), String> {
         match self.node_type {
-            NodeType::Roll(player) => {
+            NodeType::Roll(_) => {
                 return Err("Cannot add move to a roll node".to_string());
             },
-            NodeType::Move(player, die) => {
-                let opponent = player.opponent();
-                match self.get_player_board(player).with_move_made(die, next_move) {
-                    Ok(new_board) => {
-                        let new_node = Node::from_player_and_boards(
-                            player,
-                            new_board,
-                            self.get_player_board(opponent),
-                            NodeType::Roll(opponent)
-                        );
-                        self.children.push(new_node);
-                        return Ok(())
+            NodeType::Move(_, _) => {
+                match self.with_move_made(next_move) {
+                    Ok(node) => {
+                        self.children.push(node);
+                        return Ok(());
                     },
-                    Err(err) => return Err(err),
-                };
+                    Err(e) => return Err(e),
+                }
             }
         }
     }
@@ -176,12 +249,12 @@ impl Node {
         }
     }
 
-    pub fn n_children(&self) -> usize {
+    pub fn get_n_children(&self) -> usize {
         self.children.len()
     }
 
     pub fn get_max_depth(&self) -> usize {
-        if self.n_children() == 0 {
+        if self.get_n_children() == 0 {
             return 1;
         } else {
             return 1 + self.children.iter().map(|child| child.get_max_depth()).max().unwrap();
@@ -273,20 +346,40 @@ mod test_tree {
         let player_2_board = Board::empty();
         let mut root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player2, Die::Five));
 
-        assert_eq!(root.n_children(), 0);
+        assert_eq!(root.get_n_children(), 0);
 
         let m = Move::new(0, 0);
         let mut result = root.add_move(m).is_ok();
         assert!(result);
-        assert_eq!(root.n_children(), 1);
+        assert_eq!(root.get_n_children(), 1);
 
         let mut new_node = root.get_children()[0].clone();
         let result = new_node.add_rolls();
         assert!(result.is_ok());
-        assert_eq!(new_node.n_children(), 6);
+        assert_eq!(new_node.get_n_children(), 6);
         assert!(new_node.get_children().iter().all(|x| x.get_die().is_some()));
 
+    }
 
+    #[test]
+    fn test_node_handles_elimination() {
+        let player_1_board = Board::from_string("2__\n__5\n2_3".to_string()).unwrap();
+        let player_2_board = Board::from_string("___\n___\n___".to_string()).unwrap();
+        let mut root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player2, Die::Two));
+
+        let result = root.add_move(Move::new(0, 0)).is_ok();
+        assert!(result);
+        
+        let mut new_node = root.get_children()[0].clone();
+        assert_eq!(
+            new_node.get_player_1_board(),
+            Board::from_string("___\n__5\n__3".to_string()).unwrap()
+        );
+        assert_eq!(
+            new_node.get_player_2_board(),
+            Board::from_string("2__\n___\n___".to_string()).unwrap()
+        );
+        
     }
 
     #[test]
@@ -322,6 +415,28 @@ mod test_tree {
         assert!(root.get_legal_moves().is_err());
 
 
+    }
+
+    #[test]
+    fn test_node_with_move_made() {
+        let player_1_board = Board::from_string("2_5\n122\n352".to_string()).unwrap();
+        let player_2_board = Board::from_string("1__\n333\n12_".to_string()).unwrap();
+        let root = Node::new(player_1_board, player_2_board.clone(), NodeType::Move(Player::Player1, Die::Five));
+
+        let m = Move::new(0, 1);
+        let mut new_node = root.with_move_made(m).unwrap();
+        assert_eq!(
+            new_node.get_player_1_board(),
+            Board::from_string("255\n122\n352".to_string()).unwrap()
+        );
+        assert_eq!(
+            new_node.get_player_2_board(),
+            player_2_board
+        );
+        assert_eq!(
+            new_node.node_type,
+            NodeType::Roll(Player::Player2)
+        )
     }
 
     #[test]
@@ -363,21 +478,56 @@ mod test_tree {
         let mut root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player2, Die::Five));
         root.generate_children_up_to_symmetry();
 
-        assert_eq!(root.n_children(), 3);
+        assert_eq!(root.get_n_children(), 3);
                 
         let player_1_board = Board::from_string("235\n1_2\n3_2".to_string()).unwrap();
         let player_2_board = Board::from_string("15_\n333\n12_".to_string()).unwrap();
         let mut root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player1, Die::Five));
         root.generate_children_up_to_symmetry();
 
-        assert_eq!(root.n_children(), 1);
+        assert_eq!(root.get_n_children(), 1);
 
         let player_1_board = Board::from_string("255\n1_2\n352".to_string()).unwrap();
         let player_2_board = Board::from_string("15_\n333\n12_".to_string()).unwrap();
         let mut root = Node::new(player_1_board, player_2_board, NodeType::Roll(Player::Player1));
         root.generate_children_up_to_symmetry();
 
-        assert_eq!(root.n_children(), 6);
+        assert_eq!(root.get_n_children(), 6);
+    }
+
+    #[test]
+    fn test_tree_builds_entire_tree_up_to_symmetry() {
+        let player_1_board = Board::from_string("255\n1_2\n352".to_string()).unwrap();
+        let player_2_board = Board::from_string("15_\n333\n12_".to_string()).unwrap();
+        let mut root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player1, Die::Six));
+        root.build_entire_tree_up_to_symmetry();
+        assert_eq!(root.get_n_children(), 1);
+        assert_eq!(root.get_max_depth(), 2);
+
+        let player_1_board = Board::from_string("235\n1_2\n3_2".to_string()).unwrap();
+        let player_2_board = Board::from_string("156\n333\n12_".to_string()).unwrap();
+        let mut root = Node::new(player_1_board, player_2_board, NodeType::Roll(Player::Player2));
+        let mut expected_root = root.clone();
+        expected_root.add_rolls();
+        for child in expected_root.children.iter_mut() {
+            child.get_legal_moves_up_to_row_symmetry().unwrap().iter().for_each(
+                |&m| {
+                    child.add_move(m);
+                }
+            );
+        }
+        root.build_entire_tree_up_to_symmetry();
+        assert_eq!(root.get_max_depth(), 3);
+        assert_eq!(root.get_n_children(), 6);
+        assert_eq!(root, expected_root);
+
+        let player_1_board = Board::from_string("251\n142\n32_".to_string()).unwrap();
+        let player_2_board = Board::from_string("256\n1_2\n62_".to_string()).unwrap();
+        let mut root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player2, Die::Six));
+        root.build_entire_tree_up_to_symmetry();
+        assert_eq!(root.get_max_depth(), 4);
+        assert_eq!(root.get_n_children(), 2);
+        
     }
 
 }

@@ -6,13 +6,13 @@ use ansi_term::Colour;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Move {
     pub row: usize,
-    pub col: usize,
+    pub column: usize,
 }
 
 impl Move {
 
-    pub fn new(row: usize, col: usize) -> Move {
-        Move { row, col }
+    pub fn new(row: usize, column: usize) -> Move {
+        Move { row, column }
     }
 
     pub fn get_row(&self) -> usize {
@@ -20,11 +20,11 @@ impl Move {
     }
 
     pub fn get_column(&self) -> usize {
-        self.col
+        self.column
     }
 
     pub fn to_string(&self) -> String {
-        format!("({}, {})", self.row, self.col)
+        format!("({}, {})", self.row, self.column)
     }
 
     pub fn from_string(s: &str) -> Result<Move, String> {
@@ -45,7 +45,7 @@ impl Move {
             Some('2') => 2,
             _ => return Err(format!("Invalid move string: {}", s)),
         };
-        Ok(Move { row, col })
+        Ok(Move { row, column: col })
     }
 
 }
@@ -177,6 +177,16 @@ impl Board {
         let mut new_board = self.clone();
         let result = new_board.make_move(die, m);
         return result.map(|_| new_board);
+    }
+
+    pub fn eliminate(&self, die: Die, column_index: usize) -> Board {
+        let mut new_board = self.clone();
+        for square in new_board.columns[column_index].iter_mut() {
+            if *square == Square::Die(die) {
+                *square = Square::Empty;
+            }
+        }
+        return new_board;
     }
 
     pub fn get_empty_squares(&self) -> Vec<(usize, usize)> {
@@ -475,6 +485,23 @@ mod test_board_tests {
 
         let b = Board::from_string("412\n542\n162".to_string()).unwrap();
         assert_eq!(b.is_full(), true);
+    }
+
+    #[test]
+    fn test_board_eliminates() {
+
+        let board = Board::from_string("5__\n__2\n_32".to_string()).unwrap();
+        let non_eliminated_board = board.eliminate(Die::Two, 1);
+
+        assert_eq!(non_eliminated_board, board);
+
+        let non_eliminated_board = board.eliminate(Die::Six, 2);
+
+        assert_eq!(non_eliminated_board, board);
+
+        let eliminated_board = board.eliminate(Die::Two, 2);
+
+        assert_eq!(eliminated_board, Board::from_string("5__\n___\n_3_".to_string()).unwrap());
     }
 
     #[test]
