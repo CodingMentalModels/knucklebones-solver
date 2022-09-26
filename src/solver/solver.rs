@@ -15,7 +15,7 @@ impl Solver {
     pub fn get_best_moves_and_evaluation(&mut self, solver_mode: SolverMode) -> Result<(Vec<Move>, Evaluation), String> {
         match solver_mode {
             SolverMode::BruteForce => self.get_best_moves_and_evaluation_brute_force(),
-            SolverMode::Heuristic => self.get_best_moves_and_evaluation_heuristic(),
+            SolverMode::Heuristic(depth, f) => self.get_best_moves_and_evaluation_heuristic(depth, f),
         }
     }
 
@@ -29,12 +29,21 @@ impl Solver {
         ).map(|(moves, evaluation)| (moves, Evaluation::new(evaluation)));
     }
 
-    fn get_best_moves_and_evaluation_heuristic(&self) -> Result<(Vec<Move>, Evaluation), String> {
-        unimplemented!()
+    fn get_best_moves_and_evaluation_heuristic(&mut self, depth: usize, objective_function: fn(&Node) -> f32) -> Result<(Vec<Move>, Evaluation), String> {
+        self.root.build_n_moves_up_to_symmetry(depth);
+        self.root.get_next_moves_and_evaluation(objective_function)
+            .map(|(moves, evaluation)| (moves, Evaluation::new(evaluation)))
     }
 
     pub fn get_evaluation(&mut self, solver_mode: SolverMode) -> Result<Evaluation, String> {
         self.get_best_moves_and_evaluation(solver_mode).map(|(_, evaluation)| evaluation)
+    }
+
+    pub fn difference_heuristic(node: &Node, empty_square_fill: f32) -> f32 {
+        let difference = node.get_score_difference();
+        let player_1_empty_squares = node.get_player_1_board().get_n_empty_squares() as f32;
+        let player_2_empty_squares = node.get_player_2_board().get_n_empty_squares() as f32;
+        return (difference as f32) + empty_square_fill * (player_1_empty_squares - player_2_empty_squares) as f32;
     }
 
 }
@@ -62,10 +71,10 @@ impl Evaluation {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone)]
 pub enum SolverMode {
     BruteForce,
-    Heuristic,
+    Heuristic(usize, fn(&Node) -> f32),
 }
 
 #[cfg(test)]
@@ -108,6 +117,25 @@ mod test_solver {
         let mut solver = Solver::from_root(root);
         let (best_moves, evaluation) = solver.get_best_moves_and_evaluation(SolverMode::BruteForce).unwrap();
         assert_eq!((best_moves, evaluation), (vec![Move::new(2, 2)], Evaluation::new((4.*1. + 1.*0. + 1.*(-1.))/6.)));
+    }
+
+    #[test]
+    fn test_solver_solves_heuristically() {
+        let player_1_board = Board::empty();
+        let player_2_board = Board::empty();
+        let root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player1, Die::Six));
+        let mut solver = Solver::from_root(root);
+        let result = solver
+            .get_best_moves_and_evaluation(
+                SolverMode::Heuristic(1, |x| Solver::difference_heuristic(x, 3.5)),
+            ).unwrap();
+        assert_eq!(
+            result,
+            (
+                vec![Move::new(0, 0), Move::new(0, 1), Move::new(0, 2)],
+                Evaluation::new(2.5)
+            )
+        );
     }
 
 }

@@ -92,6 +92,10 @@ impl Node {
         }
     }
 
+    pub fn get_n_empty_squares(&self) -> usize {
+        self.player_1_board.get_n_empty_squares() + self.player_2_board.get_n_empty_squares()
+    }
+
     pub fn equals_up_to_children(&self, other: &Node) -> bool {
         self.player_1_board == other.player_1_board &&
         self.player_2_board == other.player_2_board &&
@@ -112,6 +116,30 @@ impl Node {
         }
     }
 
+    pub fn build_n_moves_up_to_symmetry(&mut self, n: usize) {
+        if self.is_game_over() {
+            return;
+        };
+        match self.node_type {
+            NodeType::Roll(_) => {
+                self.generate_children_up_to_symmetry();                
+                for child in self.children.iter_mut() {
+                    child.build_n_moves_up_to_symmetry(n);
+                }
+            },
+            NodeType::Move(_, _) => {
+                if n == 0 {
+                    return;
+                };
+                self.generate_children_up_to_symmetry();
+                for child in self.children.iter_mut() {
+                    child.build_n_moves_up_to_symmetry(n - 1);
+                }
+            },
+        }
+        
+    }
+
     pub fn build_entire_tree_up_to_symmetry(&mut self) {
         if self.is_game_over() {
             return;
@@ -129,7 +157,7 @@ impl Node {
             },
             NodeType::Move(player, _) => player,
         };
-        if self.is_game_over() {
+        if self.is_leaf() {
             return Ok((Vec::new(), objective_function(self)));
         }
 
@@ -196,6 +224,10 @@ impl Node {
         (self.player_1_board.sum(), self.player_2_board.sum())
     }
 
+    pub fn get_score_difference(&self) -> i16 {
+        self.player_1_board.sum() as i16 - self.player_2_board.sum() as i16
+    }
+
     pub fn get_outcome(&self) -> Outcome {
         match self.is_game_over() {
             true => {
@@ -253,6 +285,10 @@ impl Node {
                 return Err("Cannot add rolls to a move node".to_string());
             }
         }
+    }
+
+    pub fn is_leaf(&self) -> bool {
+        self.get_n_children() == 0
     }
 
     pub fn get_n_children(&self) -> usize {
@@ -597,6 +633,27 @@ mod test_tree {
         assert_eq!(root.get_max_depth(), 4);
         assert_eq!(root.get_n_children(), 2);
         
+    }
+
+    #[test]
+    fn test_tree_builds_to_depth() {
+        let player_1_board = Board::empty();
+        let player_2_board = Board::empty();
+        let mut root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player1, Die::Six));
+        root.build_n_moves_up_to_symmetry(1);
+
+        assert_eq!(root.get_max_depth(), 3);
+        assert_eq!(root.get_n_children(), 3);
+        assert!(root.get_children().iter().all(|c| c.get_n_children() == 6));
+        
+        let player_1_board = Board::empty();
+        let player_2_board = Board::empty();
+        let mut root = Node::new(player_1_board, player_2_board, NodeType::Roll(Player::Player1));
+        root.build_n_moves_up_to_symmetry(1);
+
+        assert_eq!(root.get_max_depth(), 4);
+        assert_eq!(root.get_n_children(), 6);
+        assert!(root.get_children().iter().all(|c| c.get_n_children() == 3));
     }
 
 }

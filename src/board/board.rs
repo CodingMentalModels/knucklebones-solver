@@ -229,6 +229,10 @@ impl Board {
         return rows.into_iter().flatten().collect();
     }
 
+    pub fn get_n_empty_squares(&self) -> usize {
+        self.get_empty_squares().len()
+    }
+
     pub fn get_empty_squares_up_to_row_symmetry(&self) -> Vec<(usize, usize)> {
         let mut empty_squares = Vec::new();
         for (col_n, column) in self.columns.iter().enumerate() {
