@@ -1,4 +1,5 @@
 use std::ops::Add;
+use std::fmt::{Debug, Formatter, Display};
 
 use ansi_term::Colour;
 
@@ -50,9 +51,32 @@ impl Move {
 
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Board {
     columns: Vec<Vec<Square>>,
+}
+
+impl Display for Board {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&"{:?}", f)
+    }
+}
+
+impl Debug for Board {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        let mut rows = vec![
+            "".to_string(),
+            "".to_string(),
+            "".to_string(),
+        ];
+        for column in &self.columns {
+            for (i, square) in column.iter().enumerate() {
+                rows[i].push_str(&format!("{:?}", square.to_string()));
+            }
+        };
+        return Debug::fmt(&rows.join("\n"), f);
+    }
 }
 
 impl Board {
@@ -431,6 +455,24 @@ impl Player {
             Player::Player2 => Player::Player1,
         }
     }
+
+    pub fn compare_evaluation(&self, evaluation: f32, other_evaluation: f32) -> Comparison {
+        if evaluation == other_evaluation {
+            return Comparison::Equal;
+        }
+        return match self {
+            Player::Player1 => {if evaluation > other_evaluation {Comparison::Better} else {Comparison::Worse}},
+            Player::Player2 => {if evaluation < other_evaluation {Comparison::Better} else {Comparison::Worse}},
+        }
+    }
+}
+
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Comparison {
+    Better,
+    Worse,
+    Equal,
 }
 
 #[cfg(test)]
@@ -508,6 +550,12 @@ mod test_board_tests {
     fn test_move_instantiates() {
         let m = Move::from_string("1 2").unwrap();
         assert_eq!(m, Move::new(1, 2));
+    }
+
+    #[test]
+    fn test_board_debug_format() {
+        let b = Board::from_string("5__\n__2\n_32".to_string()).unwrap();
+        assert_eq!(format!("{:?}", b), "\"\\\"5\\\"\\\"_\\\"\\\"_\\\"\\n\\\"_\\\"\\\"_\\\"\\\"2\\\"\\n\\\"_\\\"\\\"3\\\"\\\"2\\\"\"");
     }
 
 

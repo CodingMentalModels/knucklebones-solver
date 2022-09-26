@@ -92,12 +92,22 @@ mod test_solver {
         assert!(result.is_err());
 
         let player_1_board = Board::from_string("651\n142\n62_".to_string()).unwrap(); // 40 before move.
-        let player_2_board = Board::from_string("256\n1_2\n62_".to_string()).unwrap(); // 24 before move.
+        let player_2_board = Board::from_string("256\n1_2\n62_".to_string()).unwrap(); // 28 before move.
+        // Player 2 has two moves:
+        // (1, 1) => 30
+        // (2, 2) => 44
+        // Player 1 has one move, (1, 1):
+        // Based on rolls, that means the score is:
+        // 1 => 45 => Player 1 wins
+        // 2 => 47 => Player 1 wins
+        // 3 => 43 => Player 2 wins iff Player 2 played (2, 2), else Player 1 wins
+        // 4 => 44 => Draws iff Player 2 played (2, 2), else wins
+        // 5 => 45 => Player 1 wins
+        // 6 => 46 => PLayer 1 wins
         let root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player2, Die::Six));
         let mut solver = Solver::from_root(root);
         let (best_moves, evaluation) = solver.get_best_moves_and_evaluation(SolverMode::BruteForce).unwrap();
-        assert_eq!(best_moves, vec![Move::new(2, 2)]);
-        assert_eq!(evaluation, Evaluation::new(4.*1. + 1.*0. + 1.*(-1.)));
+        assert_eq!((best_moves, evaluation), (vec![Move::new(2, 2)], Evaluation::new((4.*1. + 1.*0. + 1.*(-1.))/6.)));
     }
 
 }
