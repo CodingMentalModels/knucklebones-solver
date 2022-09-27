@@ -47,6 +47,10 @@ impl Node {
         self.player_2_board.clone()
     }
 
+    pub fn get_node_type(&self) -> NodeType {
+        self.node_type
+    }
+
     pub fn get_player_board(&self, player: Player) -> Board {
         match player {
             Player::Player1 => self.player_1_board.clone(),
