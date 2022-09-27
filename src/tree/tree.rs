@@ -315,6 +315,21 @@ impl Node {
         self.get_child(m.get_row(), m.get_column())
     }
 
+    pub fn get_child_from_roll(&self, roll: Die) -> Result<&Node, String> {
+        match self.node_type {
+            NodeType::Roll(_) => {
+                if self.get_n_children() != 6 {
+                    return Err("Roll node does not have children".to_string());
+                } else {
+                    return Ok(&self.children[(roll.to_value() - 1) as usize]);
+                }
+            },
+            NodeType::Move(_, _) => {
+                return Err("Cannot get child from roll from a move node".to_string());
+            }
+        }
+    }
+
     pub fn get_child(&self, row: usize, col: usize) -> Result<&Node, String> {
         let expected_node = match self.with_move_made(Move::new(row, col)) {
             Ok(node) => node,
@@ -658,6 +673,16 @@ mod test_tree {
         assert_eq!(root.get_max_depth(), 4);
         assert_eq!(root.get_n_children(), 6);
         assert!(root.get_children().iter().all(|c| c.get_n_children() == 3));
+
+        let player_1_board = Board::from_string("651\n142\n62_".to_string()).unwrap(); // 40 before move.
+        let player_2_board = Board::from_string("256\n1_2\n62_".to_string()).unwrap(); // 24 before move.
+        let mut root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player2, Die::Six));
+        let mut expected_root = root.clone();
+
+        root.build_n_moves_up_to_symmetry(5);
+        expected_root.build_entire_tree_up_to_symmetry();
+        assert_eq!(root, expected_root);
+
     }
 
 }
