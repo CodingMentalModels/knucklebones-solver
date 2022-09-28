@@ -2,6 +2,7 @@ use std::ops::Add;
 use std::fmt::{Debug, Formatter, Display};
 
 use ansi_term::Colour;
+use rand::Rng;
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,24 +59,13 @@ pub struct Board {
 
 impl Display for Board {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&"{:?}", f)
+        std::fmt::Display::fmt(&self.to_string(), f)
     }
 }
 
 impl Debug for Board {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut s = String::new();
-        let mut rows = vec![
-            "".to_string(),
-            "".to_string(),
-            "".to_string(),
-        ];
-        for column in &self.columns {
-            for (i, square) in column.iter().enumerate() {
-                rows[i].push_str(&format!("{:?}", square.to_string()));
-            }
-        };
-        return Debug::fmt(&rows.join("\n"), f);
+        std::fmt::Debug::fmt(&self.to_string(), f)
     }
 }
 
@@ -334,6 +324,12 @@ impl Die {
         }
     }
 
+    pub fn random() -> Die {
+        let mut rng = rand::thread_rng();
+        let die_value: u8 = rng.gen_range(1..7);
+        Die::new(die_value).unwrap()
+    }
+
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -469,6 +465,14 @@ impl Player {
             Player::Player2 => {if evaluation < other_evaluation {Comparison::Better} else {Comparison::Worse}},
         }
     }
+
+    pub fn get_random() -> Self {
+        if rand::random::<bool>() {
+            Player::Player1
+        } else {
+            Player::Player2
+        }
+    }
 }
 
 
@@ -559,7 +563,7 @@ mod test_board_tests {
     #[test]
     fn test_board_debug_format() {
         let b = Board::from_string("5__\n__2\n_32".to_string()).unwrap();
-        assert_eq!(format!("{:?}", b), "\"\\\"5\\\"\\\"_\\\"\\\"_\\\"\\n\\\"_\\\"\\\"_\\\"\\\"2\\\"\\n\\\"_\\\"\\\"3\\\"\\\"2\\\"\"");
+        assert_eq!(format!("{:?}", b), "\"5__\\n__2\\n_32\"");
     }
 
 
