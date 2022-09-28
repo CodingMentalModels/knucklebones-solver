@@ -4,6 +4,7 @@ mod solver;
 
 use std::io;
 use clap::{App, SubCommand, Arg};
+use rand::seq::SliceRandom;
 use crate::board::board::Player;
 use crate::tree::tree::Node;
 use crate::board::board::{Board, Move, Outcome, Die};
@@ -47,6 +48,7 @@ fn main() {
             None => DEFAULT_DEPTH
         };
         let player = Player::get_random();
+        let mut rng = rand::thread_rng();
         let mut game = Node::empty();
         while !game.is_game_over() {
             match game.get_node_type() {
@@ -82,9 +84,9 @@ fn main() {
                         );
                         match result {
                             Ok((best_moves, evaluation)) => {
-                                let selected_move = best_moves[0];
+                                let selected_move = best_moves.choose(&mut rng).unwrap();
                                 println!("Solver rolls a {} and plays {}.  Evaluation: {}", roll.to_string(), selected_move.to_string(), evaluation.from_perspective(player).to_string());
-                                game = game.with_move_made(best_moves[0]).expect("Move is guaranteed to be legal.");
+                                game = game.with_move_made(*selected_move).expect("Move is guaranteed to be legal.");
                             },
                             Err(e) => {
                                 println!("Solver failed: {}", e);
