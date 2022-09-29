@@ -12,6 +12,7 @@ use crate::solver::solver::{Solver, SolverMode, Evaluation};
 use crate::tree::tree::NodeType;
 
 const DEFAULT_DEPTH: usize = 4;
+const DEFAULT_MAX_DEPTH_TO_BRUTE_FORCE: usize = 4;
 
 fn main() {
     let matches = App::new("Knucklebones (Cult of the Lamb) Solver")
@@ -33,6 +34,12 @@ fn main() {
                         .short('d')
                         .long("depth")
                         .takes_value(true)
+                ).arg(
+                    Arg::with_name("Max Depth to Brute Force")
+                        .help("Max depth to brute force.")
+                        .short('b')
+                        .long("max-brute-force-depth")
+                        .takes_value(true)
                 )
             ).get_matches();
     
@@ -46,6 +53,10 @@ fn main() {
             }
         }
     } else if let Some(matches) = matches.subcommand_matches("play") {
+        let max_depth_to_brute_force = match matches.value_of("Max Depth to Brute Force") {
+            Some(depth) => depth.parse::<usize>().unwrap(),
+            None => DEFAULT_MAX_DEPTH_TO_BRUTE_FORCE
+        };
         let heuristic_depth = match matches.value_of("Heuristic Depth") {
             Some(depth) => depth.parse::<usize>().expect("Invalid depth!"),
             None => DEFAULT_DEPTH
@@ -81,9 +92,9 @@ fn main() {
                             }
                         }
                     } else {
-                        let mut solver = Solver::from_root(game.clone());
+                        let mut solver = Box::new(Solver::from_root(game.clone()));
                         let result = solver.get_best_moves_and_evaluation(
-                            SolverMode::Heuristic(heuristic_depth, |x| Solver::difference_heuristic(x, 3.5))
+                            SolverMode::Hybrid(max_depth_to_brute_force, (heuristic_depth, |x| Solver::difference_heuristic(x, 3.5)))
                         );
                         match result {
                             Ok((best_moves, evaluation)) => {

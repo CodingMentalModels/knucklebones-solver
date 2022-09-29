@@ -126,6 +126,20 @@ impl Node {
         self.player_1_board.get_n_empty_squares() + self.player_2_board.get_n_empty_squares()
     }
 
+    pub fn get_moves_left_ignoring_elimination(&self) -> usize {
+        let player_1_moves_left = self.player_1_board.get_n_empty_squares();
+        let player_2_moves_left = self.get_player_2_board().get_n_empty_squares();
+        if player_1_moves_left < player_2_moves_left {
+            let active_player_bonus = if self.get_active_player() == Player::Player1 { 1 } else { 0 };
+            return self.get_player_1_board().get_n_empty_squares()*2 - active_player_bonus;
+        } else if player_2_moves_left < player_1_moves_left {
+            let active_player_bonus = if self.get_active_player() == Player::Player2 { 1 } else { 0 };
+            return self.get_player_2_board().get_n_empty_squares()*2 - active_player_bonus;
+        } else {
+            return self.get_player_1_board().get_n_empty_squares()*2 - 1;
+        }
+    }
+
     pub fn equals_up_to_children(&self, other: &Node) -> bool {
         self.player_1_board == other.player_1_board &&
         self.player_2_board == other.player_2_board &&
@@ -728,6 +742,45 @@ mod test_tree {
         root.build_n_moves_up_to_symmetry(5);
         expected_root.build_entire_tree_up_to_symmetry();
         assert_eq!(root, expected_root);
+
+    }
+
+    #[test]
+    fn test_get_moves_left_ignoring_elimination() {
+
+        let player_1_board = Board::empty();
+        let player_2_board = Board::empty();
+        let node = Node::new(player_1_board.clone(), player_2_board.clone(), NodeType::Move(Player::Player1, Die::Six));
+        assert_eq!(node.get_moves_left_ignoring_elimination(), 17);
+        let node = Node::new(player_1_board.clone(), player_2_board.clone(), NodeType::Move(Player::Player2, Die::Six));
+        assert_eq!(node.get_moves_left_ignoring_elimination(), 17);
+        let node = Node::new(player_1_board.clone(), player_2_board.clone(), NodeType::Roll(Player::Player1));
+        assert_eq!(node.get_moves_left_ignoring_elimination(), 17);
+        let node = Node::new(player_1_board.clone(), player_2_board.clone(), NodeType::Roll(Player::Player2));
+        assert_eq!(node.get_moves_left_ignoring_elimination(), 17);
+
+        let player_1_board = Board::from_string("651\n142\n62_".to_string()).unwrap();
+        let player_2_board = Board::from_string("256\n1_2\n62_".to_string()).unwrap();
+        let node = Node::new(player_1_board.clone().clone(), player_2_board.clone(), NodeType::Move(Player::Player1, Die::Six));
+        assert_eq!(node.get_moves_left_ignoring_elimination(), 1);
+        let node = Node::new(player_1_board.clone(), player_2_board.clone(), NodeType::Roll(Player::Player1));
+        assert_eq!(node.get_moves_left_ignoring_elimination(), 1);
+        let node = Node::new(player_1_board.clone(), player_2_board.clone(), NodeType::Move(Player::Player2, Die::Six));
+        assert_eq!(node.get_moves_left_ignoring_elimination(), 2);
+        let node = Node::new(player_1_board.clone(), player_2_board.clone(), NodeType::Roll(Player::Player2));
+        assert_eq!(node.get_moves_left_ignoring_elimination(), 2);
+        
+
+        let player_1_board = Board::from_string("651\n_42\n62_".to_string()).unwrap();
+        let player_2_board = Board::from_string("___\n1_2\n62_".to_string()).unwrap();
+        let node = Node::new(player_1_board.clone(), player_2_board.clone(), NodeType::Move(Player::Player1, Die::Six));
+        assert_eq!(node.get_moves_left_ignoring_elimination(), 3);
+        let node = Node::new(player_1_board.clone(), player_2_board.clone(), NodeType::Roll(Player::Player1));
+        assert_eq!(node.get_moves_left_ignoring_elimination(), 3);
+        let node = Node::new(player_1_board.clone(), player_2_board.clone(), NodeType::Move(Player::Player2, Die::Six));
+        assert_eq!(node.get_moves_left_ignoring_elimination(), 4);
+        let node = Node::new(player_1_board.clone(), player_2_board.clone(), NodeType::Roll(Player::Player2));
+        assert_eq!(node.get_moves_left_ignoring_elimination(), 4);
 
     }
 

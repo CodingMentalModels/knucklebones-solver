@@ -15,7 +15,10 @@ impl Solver {
     pub fn get_best_moves_and_evaluation(&mut self, solver_mode: SolverMode) -> Result<(Vec<Move>, Evaluation), String> {
         match solver_mode {
             SolverMode::BruteForce => self.get_best_moves_and_evaluation_brute_force(),
-            SolverMode::Heuristic(depth, f) => self.get_best_moves_and_evaluation_heuristic(depth, f),
+            SolverMode::Heuristic((depth, f)) => 
+                self.get_best_moves_and_evaluation_heuristic(depth, f),
+            SolverMode::Hybrid(max_moves_left_before_brute_force, (depth, f)) => 
+                self.get_best_moves_and_evaluation_hybrid(max_moves_left_before_brute_force, depth, f),
         }
     }
 
@@ -33,6 +36,14 @@ impl Solver {
         self.root.build_n_moves_up_to_symmetry(depth);
         self.root.get_next_moves_and_evaluation(objective_function)
             .map(|(moves, evaluation)| (moves, Evaluation::new(evaluation)))
+    }
+
+    pub fn get_best_moves_and_evaluation_hybrid(&mut self, max_moves_left_before_brute_force: usize, depth: usize, objective_function: fn(&Node) -> f32) -> Result<(Vec<Move>, Evaluation), String> {
+        if self.root.get_moves_left_ignoring_elimination() <= max_moves_left_before_brute_force {
+            self.get_best_moves_and_evaluation_brute_force()
+        } else {
+            self.get_best_moves_and_evaluation_heuristic(depth, objective_function)
+        }
     }
 
     pub fn get_evaluation(&mut self, solver_mode: SolverMode) -> Result<Evaluation, String> {
@@ -106,8 +117,12 @@ impl Evaluation {
 #[derive(Copy, Clone)]
 pub enum SolverMode {
     BruteForce,
-    Heuristic(usize, fn(&Node) -> f32),
+    Heuristic(HeuristicDepthAndObjective),
+    Hybrid(BruteForceMaxMovesRemaining, HeuristicDepthAndObjective),
 }
+
+type HeuristicDepthAndObjective = (usize, fn(&Node) -> f32);
+type BruteForceMaxMovesRemaining = usize;
 
 #[cfg(test)]
 mod test_solver {
@@ -153,21 +168,21 @@ mod test_solver {
 
     #[test]
     fn test_solver_solves_heuristically() {
-        // let player_1_board = Board::empty();
-        // let player_2_board = Board::empty();
-        // let root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player1, Die::Six));
-        // let mut solver = Solver::from_root(root);
-        // let result = solver
-        //     .get_best_moves_and_evaluation(
-        //         SolverMode::Heuristic(1, |x| Solver::difference_heuristic(x, 3.5)),
-        //     ).unwrap();
-        // assert_eq!(
-        //     result,
-        //     (
-        //         vec![Move::new(0, 0), Move::new(0, 1), Move::new(0, 2)],
-        //         Evaluation::new(6.0)
-        //     )
-        // );
+        let player_1_board = Board::empty();
+        let player_2_board = Board::empty();
+        let root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player1, Die::Six));
+        let mut solver = Solver::from_root(root);
+        let result = solver
+            .get_best_moves_and_evaluation(
+                SolverMode::Heuristic((1, |x| Solver::difference_heuristic(x, 3.5))),
+            ).unwrap();
+        assert_eq!(
+            result,
+            (
+                vec![Move::new(0, 0), Move::new(0, 1), Move::new(0, 2)],
+                Evaluation::new(6.0)
+            )
+        );
 
         let player_1_board = Board::from_string("651\n142\n62_".to_string()).unwrap(); // 40 before move.
         let player_2_board = Board::from_string("256\n1_2\n62_".to_string()).unwrap(); // 24 before move.
@@ -184,8 +199,46 @@ mod test_solver {
         // 6 => 46 + 26 (due to elimination of 2 6's) => PLayer 1 wins.  Diff = 28
         let root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player2, Die::Six));
         let mut solver = Solver::from_root(root);
-        let (best_moves, evaluation) = solver.get_best_moves_and_evaluation(SolverMode::Heuristic(5, |x| Solver::difference_heuristic(x, 3.5))).unwrap();
+        let (best_moves, evaluation) = solver.get_best_moves_and_evaluation(SolverMode::Heuristic((5, |x| Solver::difference_heuristic(x, 3.5)))).unwrap();
         assert_eq!((best_moves, evaluation), (vec![Move::new(2, 2)], Evaluation::new((1. + 7. - 1. + 0. + 1. + 28.)/6.)));
+    }
+
+    #[test]
+    fn test_solver_solves_hybrid() {
+        let player_1_board = Board::from_string("255\n1_2\n352".to_string()).unwrap();
+        let player_2_board = Board::from_string("15_\n333\n12_".to_string()).unwrap();
+        let root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player1, Die::Six));
+        let mut solver = Solver::from_root(root);
+        let (best_moves, evaluation) = solver.get_best_moves_and_evaluation(SolverMode::Hybrid(5, (4, |x| Solver::difference_heuristic(x, 3.5)))).unwrap();
+        assert_eq!(best_moves, vec![Move::new(1, 1)]);
+        assert_eq!(evaluation, Evaluation::new(1.0));
+
+
+        let player_1_board = Board::empty();
+        let player_2_board = Board::empty();
+        let root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player1, Die::Six));
+        let mut solver = Solver::from_root(root);
+        let result = solver
+            .get_best_moves_and_evaluation(
+                SolverMode::Hybrid(5, (1, |x| Solver::difference_heuristic(x, 3.5))),
+            ).unwrap();
+        assert_eq!(
+            result,
+            (
+                vec![Move::new(0, 0), Move::new(0, 1), Move::new(0, 2)],
+                Evaluation::new(6.0)
+            )
+        );
+
+        // Perf Test
+        let player_1_board = Board::from_string("6_1\n_42\n62_".to_string()).unwrap();
+        let player_2_board = Board::from_string("_56\n1_2\n62_".to_string()).unwrap();
+        let root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player2, Die::Six));
+        let mut solver = Solver::from_root(root);
+        let (best_moves, evaluation) = solver.get_best_moves_and_evaluation(SolverMode::Hybrid(5, (4, |x| Solver::difference_heuristic(x, 3.5)))).unwrap();
+        assert!(evaluation >= Evaluation::new(0.0));
+        assert!(evaluation <= Evaluation::new(1.0));
+
     }
 
     #[test]

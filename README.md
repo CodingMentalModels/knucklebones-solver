@@ -64,6 +64,7 @@ Unclear what N should be to make us indifferent, but this should happen very rar
 
 ## Insights
 
+* Position seems to have a lot of meaning.  e.g. after a 2 and a 6 have been rolled and played on separate columns, player 1 is a 2.6 point favorite, despite being down 4 points and only having one more move.
 
 ### Questions
 
