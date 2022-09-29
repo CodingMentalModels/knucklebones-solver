@@ -108,7 +108,7 @@ fn main() {
             },
             Outcome::InProgress => panic!("Game is over, but outcome is in progress.")
         };
-        println!("Game Over!  {}", outcome);
+        println!("Game Over!  {}\nPlayer: {}\nSolver: {}", outcome, game.get_score(player), game.get_score(player.opponent()));
     } else {
         println!("Missing subcommand!");  
     }

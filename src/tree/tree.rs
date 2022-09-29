@@ -267,6 +267,13 @@ impl Node {
         (self.player_1_board.sum(), self.player_2_board.sum())
     }
 
+    pub fn get_score(&self, player: Player) -> u16 {
+        match player {
+            Player::Player1 => self.player_1_board.sum(),
+            Player::Player2 => self.player_2_board.sum(),
+        }
+    }
+
     pub fn get_score_difference(&self) -> i16 {
         self.player_1_board.sum() as i16 - self.player_2_board.sum() as i16
     }
