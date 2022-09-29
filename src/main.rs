@@ -30,6 +30,9 @@ fn main() {
                 .arg(
                     Arg::with_name("Heuristic Depth")
                         .help("Depth of the heuristic search.")
+                        .short('d')
+                        .long("depth")
+                        .takes_value(true)
                 )
             ).get_matches();
     
