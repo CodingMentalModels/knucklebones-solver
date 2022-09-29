@@ -82,6 +82,17 @@ impl Evaluation {
         self.0
     }
 
+    pub fn from_perspective(&self, perspective: Player) -> Self {
+        match perspective {
+            Player::Player1 => Evaluation(self.0),
+            Player::Player2 => Evaluation(-self.0),
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        format!("{:.2}", self.0)
+    }
+
     fn from_outcome(outcome: Outcome) -> Result<Self, String> {
         match outcome {
             Outcome::Victory(Player::Player1) => Ok(Evaluation::new(1.0)),

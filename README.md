@@ -47,7 +47,7 @@ ___"
     * Regret Minimization -- Run N iterations of the game and after each one update the player's strategies to use the one that performed the least badly against opponent's maximally exploitive strategy.    
 * Let's go with the heuristic-based approach, with the following heuristic:
     * If we can brute force the game, i.e. we're some small number of moves from the end (perhaps 3 moves per player, which makes the tree < 6^6*(3!)^2 nodes, which should be managable).
-    * Heuristic = difference between the player's score and opponent's score, assuming that each empty space is populated with an average die (3.5)
+    * Heuristic = difference between the player's score and opponent's score, assuming that each empty space that would be populated before the game ends assuming no eliminations is populated with an average die (3.5)
 
 
 Tricky Case:
@@ -61,3 +61,10 @@ Unclear what N should be to make us indifferent, but this should happen very rar
 
 ### Expose a Command Line Interface to allow a user to solve the game from any position
 
+
+## Insights
+
+
+### Questions
+
+* Solver likes to stack numbers on its second move, e.g. when it's going second and rolls a 2 and 6 vs. a 5 and a 1 it plays them on (0, 2), (1, 2) vs. normal looking play.  This seems unintuitive because it doesn't allow multiplication of the 6 as easily and blocks potential eliminations.  Note in our case the Player's 1 was on (0, 2) so maybe the eliminations aren't important.

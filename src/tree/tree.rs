@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::board::board::{Board, Move, Outcome, Player, Die, Comparison};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -6,6 +8,12 @@ pub struct Node {
     player_2_board: Board,
     node_type: NodeType,
     children: Vec<Node>,
+}
+
+impl Display for Node {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Player 1:\n{}\nPlayer 2:\n{}\nType: {:?}\nN Children: {}", self.player_1_board, self.player_2_board, self.node_type, self.children.len())
+    }
 }
 
 impl Node {
@@ -69,6 +77,24 @@ impl Node {
         match self.node_type {
             NodeType::Roll(player) => player,
             NodeType::Move(player, _) => player,
+        }
+    }
+
+    pub fn to_string_from_perspective(&self, player: Player) -> String {
+        let maybe_roll_string = match self.node_type {
+            NodeType::Roll(_) => "".to_string(),
+            NodeType::Move(_, die) => die.to_string() + "\n",
+        };
+        match player {
+            Player::Player1 => format!("Player:\n{}\n\nOpponent:\n{}\n\nRoll: {}\n", self.player_1_board, self.player_2_board, maybe_roll_string),
+            Player::Player2 => format!("Player:\n{}\n\nOpponent:\n{}\n\nRoll: {}\n", self.player_2_board, self.player_1_board, maybe_roll_string),
+        }
+    }
+
+    pub fn is_legal_move(&self, m: Move) -> bool {
+        match self.node_type {
+            NodeType::Roll(_) => false,
+            NodeType::Move(player, _) => self.get_legal_moves().map_or(false, |moves| moves.contains(&m)),
         }
     }
 
@@ -224,8 +250,28 @@ impl Node {
         }
     }
 
+    pub fn with_rolls(&self, die: Die) -> Result<Node, String> {
+        match self.node_type {
+            NodeType::Roll(player) => {
+                let mut to_return = self.clone();
+                to_return.add_rolls();
+                return Ok(to_return);
+            },
+            NodeType::Move(player, _) => {
+                return Err("Cannot roll from a move node".to_string());
+            },
+        }
+    }
+
     pub fn get_scores(&self) -> (u16, u16) {
         (self.player_1_board.sum(), self.player_2_board.sum())
+    }
+
+    pub fn get_score(&self, player: Player) -> u16 {
+        match player {
+            Player::Player1 => self.player_1_board.sum(),
+            Player::Player2 => self.player_2_board.sum(),
+        }
     }
 
     pub fn get_score_difference(&self) -> i16 {
