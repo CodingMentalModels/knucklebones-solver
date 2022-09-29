@@ -12,37 +12,62 @@ impl Solver {
         }
     }
 
-    pub fn get_best_moves_and_evaluation(&mut self, solver_mode: SolverMode) -> Result<(Vec<Move>, Evaluation), String> {
+    pub fn get_evaluation_tree(&mut self, solver_mode: SolverMode) -> Result<(Option<Node>, Evaluation), String> {
         match solver_mode {
-            SolverMode::BruteForce => self.get_best_moves_and_evaluation_brute_force(),
+            SolverMode::BruteForce => self.get_evaluation_tree_brute_force(),
             SolverMode::Heuristic((depth, f)) => 
-                self.get_best_moves_and_evaluation_heuristic(depth, f),
+                self.get_evaluation_tree_heuristic(depth, f),
             SolverMode::Hybrid(max_moves_left_before_brute_force, (depth, f)) => 
-                self.get_best_moves_and_evaluation_hybrid(max_moves_left_before_brute_force, depth, f),
+                self.get_evaluation_tree_hybrid(max_moves_left_before_brute_force, depth, f),
         }
     }
 
-    fn get_best_moves_and_evaluation_brute_force(&mut self) -> Result<(Vec<Move>, Evaluation), String> {
+    pub fn get_best_moves_and_evaluation(&mut self, solver_mode: SolverMode) -> Result<(Vec<Move>, Evaluation), String> {
+        self.get_evaluation_tree(solver_mode).map(
+            |(maybe_tree, evaluation)|
+            (Self::get_best_moves_from_evaluation_tree(maybe_tree).expect("Guaranteed to be a Move Node"), evaluation)
+        )
+    }
+
+    fn get_evaluation_tree_brute_force(&mut self) -> Result<(Option<Node>, Evaluation), String> {
         self.root.build_entire_tree_up_to_symmetry();
-        return self.root.get_next_moves_and_evaluation(
+        return self.root.get_evaluation_tree(
             |x| Evaluation::from_outcome(
                 x.get_outcome()
             ).expect("Outcome will be known at all leaf nodes.")
             .get_evaluation(),
-        ).map(|(moves, evaluation)| (moves, Evaluation::new(evaluation)));
+        ).map(
+            |(maybe_tree, evaluation)|
+            (maybe_tree, Evaluation::new(evaluation))
+        );
     }
 
-    fn get_best_moves_and_evaluation_heuristic(&mut self, depth: usize, objective_function: fn(&Node) -> f32) -> Result<(Vec<Move>, Evaluation), String> {
+    fn get_evaluation_tree_heuristic(&mut self, depth: usize, objective_function: fn(&Node) -> f32) -> Result<(Option<Node>, Evaluation), String> {
         self.root.build_n_moves_up_to_symmetry(depth);
-        self.root.get_next_moves_and_evaluation(objective_function)
-            .map(|(moves, evaluation)| (moves, Evaluation::new(evaluation)))
+        self.root.get_evaluation_tree(objective_function)
+            .map(
+                |(maybe_tree, evaluation)|
+                (maybe_tree, Evaluation::new(evaluation))
+            )
     }
 
-    pub fn get_best_moves_and_evaluation_hybrid(&mut self, max_moves_left_before_brute_force: usize, depth: usize, objective_function: fn(&Node) -> f32) -> Result<(Vec<Move>, Evaluation), String> {
+    fn get_evaluation_tree_hybrid(&mut self, max_moves_left_before_brute_force: usize, depth: usize, objective_function: fn(&Node) -> f32) -> Result<(Option<Node>, Evaluation), String> {
         if self.root.get_moves_left_ignoring_elimination() <= max_moves_left_before_brute_force {
-            self.get_best_moves_and_evaluation_brute_force()
+            self.get_evaluation_tree_brute_force()
         } else {
-            self.get_best_moves_and_evaluation_heuristic(depth, objective_function)
+            self.get_evaluation_tree_heuristic(depth, objective_function)
+        }
+    }
+
+    fn get_best_moves_from_evaluation_tree(maybe_tree: Option<Node>) -> Result<Vec<Move>, String> {
+        match maybe_tree {
+            Some(tree) => {
+                match tree.get_node_type() {
+                    NodeType::Roll(_) => Err("Roll node can't be the root of an evaluation tree.".to_string()),
+                    NodeType::Move(_, _) => Ok(tree.get_moves().expect("Guaranteed to be a move node.")),
+                }
+            },
+            None => Ok(vec![]),
         }
     }
 
@@ -121,8 +146,8 @@ pub enum SolverMode {
     Hybrid(BruteForceMaxMovesRemaining, HeuristicDepthAndObjective),
 }
 
-type HeuristicDepthAndObjective = (usize, fn(&Node) -> f32);
-type BruteForceMaxMovesRemaining = usize;
+pub type HeuristicDepthAndObjective = (usize, fn(&Node) -> f32);
+pub type BruteForceMaxMovesRemaining = usize;
 
 #[cfg(test)]
 mod test_solver {

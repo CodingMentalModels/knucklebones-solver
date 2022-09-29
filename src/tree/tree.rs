@@ -43,6 +43,15 @@ impl Node {
         }
     }
 
+    pub fn clone_without_children(&self) -> Self {
+        Node {
+            player_1_board: self.player_1_board.clone(),
+            player_2_board: self.player_2_board.clone(),
+            node_type: self.node_type.clone(),
+            children: Vec::new(),
+        }
+    }
+
     pub fn get_boards(&self) -> (Board, Board) {
         (self.player_1_board.clone(), self.player_2_board.clone())
     }
@@ -91,6 +100,52 @@ impl Node {
         }
     }
 
+    pub fn to_pretty_string(&self, objective_function: fn(&Node) -> f32) -> String {        
+        self.to_pretty_vector(objective_function, 0, None).join("\n")
+    }
+
+    fn to_pretty_vector(&self, objective_function: fn(&Node) -> f32, depth: usize, last_move: Option<Move>) -> Vec<String> {
+        let mut to_return = Vec::new();
+        let mut indent = String::new();
+        for _ in 0..depth {
+            indent.push_str("  ");
+        }
+        let suffix = if self.get_n_children() > 0 {
+            " =>".to_string()
+        } else {
+            "".to_string()
+        };
+        let last_move_string = match last_move {
+            Some(m) => m.to_string(),
+            None => "Unknown Move".to_string(),
+        };
+        match self.get_node_type() {
+            NodeType::Roll(player) => {
+                if self.get_n_children() > 0 {
+                    to_return.push(format!("{}{}{}", indent, last_move_string, suffix));
+                    to_return.append(&mut self.children.iter().map(|child| child.to_pretty_vector(objective_function, depth + 1, None)).flatten().collect());
+                } else {
+                    to_return.push(format!("{}{}: {}", indent, last_move_string, objective_function(self)));
+                }
+                
+            },
+            NodeType::Move(player, die) => {
+                if self.get_n_children() > 0 {
+                    to_return.push(format!("{}{}{}", indent, die.to_string(), suffix));
+                    to_return.append(
+                        &mut self.get_moves()
+                        .expect("Must be a move node").iter().map(
+                            |m| self.get_child_from_move(*m).expect("Child is guaranteed to exist.")
+                                .to_pretty_vector(objective_function, depth + 1, Some(*m))
+                        ).flatten().collect());
+                } else {
+                    to_return.push(format!("{}{}: {}", indent, die.to_string(), objective_function(self)));
+                }
+            },
+        }
+        return to_return
+    }
+
     pub fn is_legal_move(&self, m: Move) -> bool {
         match self.node_type {
             NodeType::Roll(_) => false,
@@ -108,6 +163,17 @@ impl Node {
                 return Ok(board.get_empty_squares().iter().map(|square| Move::new(square.0, square.1)).collect());
             },
         }
+    }
+
+    pub fn get_moves(&self) -> Result<Vec<Move>, String> {
+        self.get_legal_moves().map(
+            |moves| {
+                moves.into_iter()
+                    .filter(
+                        |m| self.get_child_from_move(*m).is_ok()
+                    ).collect()
+            }
+        )
     }
 
     pub fn get_legal_moves_up_to_row_symmetry(&self) -> Result<Vec<Move>, String> {
@@ -194,7 +260,7 @@ impl Node {
         }
     }
 
-    pub fn get_next_moves_and_evaluation(&self, objective_function: fn(&Node) -> f32) -> Result<(Vec<Move>, f32), String> {
+    pub fn get_evaluation_tree(&self, objective_function: fn(&Node) -> f32) -> Result<(Option<Node>, f32), String> {
         let player = match self.node_type {
             NodeType::Roll(_) => {
                 return Err("Cannot get next moves and evaluation from a roll node".to_string());
@@ -202,7 +268,7 @@ impl Node {
             NodeType::Move(player, _) => player,
         };
         if self.is_leaf() {
-            return Ok((Vec::new(), objective_function(self)));
+            return Ok((None, objective_function(self)));
         }
 
         let legal_moves = self.get_legal_moves_up_to_row_symmetry()
@@ -211,33 +277,36 @@ impl Node {
             Player::Player1 => f32::NEG_INFINITY,
             Player::Player2 => f32::INFINITY,
         };
-        let mut next_moves = Vec::new();
+        let mut to_return = self.clone_without_children();
         for next_move in legal_moves {
             let child_roll_node = self.get_child_from_move(next_move)
                 .expect("Won't error because we know the moves are legal.");
             if child_roll_node.is_game_over() {
-                return Ok((vec![next_move], objective_function(child_roll_node)));
+                // It must be the case that we're making the only legal move so can just evaluate and return.
+                to_return.add_move(next_move).expect("Won't error because we know the moves are legal.");
+                return Ok((Some(to_return), objective_function(child_roll_node)));
             }
             let mut average_evaluation = 0.;
             let average_denominator = child_roll_node.get_n_children() as f32;
             for child_move_node in child_roll_node.children.iter() {
                 let (_, child_evaluation) = child_move_node
-                    .get_next_moves_and_evaluation(objective_function)
+                    .get_evaluation_tree(objective_function)
                     .expect("Won't error because we're in a Move node type.");
                 average_evaluation += child_evaluation / average_denominator;
             }
             match player.compare_evaluation(average_evaluation, best_evaluation) {
                 Comparison::Equal => {
-                    next_moves.push(next_move);
+                    to_return.children.push(child_roll_node.clone());
                 },
                 Comparison::Better => {
                     best_evaluation = average_evaluation;
-                    next_moves = vec![next_move];
+                    to_return = self.clone_without_children();
+                    to_return.children.push(child_roll_node.clone());
                 },
                 Comparison::Worse => {},
             }
         }
-        return Ok((next_moves, best_evaluation));
+        return Ok((Some(to_return), best_evaluation));
     }
 
     pub fn with_move_made(&self, m: Move) -> Result<Node, String> {
@@ -656,6 +725,24 @@ mod test_tree {
     }
 
     #[test]
+    fn test_node_gets_moves() {
+        let player_1_board = Board::empty();
+        let player_2_board = Board::empty();
+        let mut root = Node::new(player_1_board, player_2_board, NodeType::Roll(Player::Player1));
+        root.build_n_moves_up_to_symmetry(1);
+        assert!(root.get_moves().is_err());
+
+        let player_1_board = Board::empty();
+        let player_2_board = Board::empty();
+        let mut root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player1, Die::Two));
+        root.build_n_moves_up_to_symmetry(1);
+        assert_eq!(
+            root.get_moves(),
+            Ok(vec![Move::new(0, 0), Move::new(0, 1), Move::new(0, 2),])
+        )
+    }
+
+    #[test]
     fn test_node_generates_children_up_to_row_symmetry() {
         let player_1_board = Board::from_string("2__\n___\n___".to_string()).unwrap();
         let player_2_board = Board::empty();
@@ -782,6 +869,25 @@ mod test_tree {
         let node = Node::new(player_1_board.clone(), player_2_board.clone(), NodeType::Roll(Player::Player2));
         assert_eq!(node.get_moves_left_ignoring_elimination(), 4);
 
+    }
+
+    #[test]
+    fn test_tree_pretty_prints() {
+        let player_1_board = Board::empty();
+        let player_2_board = Board::empty();
+        let mut root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player1, Die::Six));
+        let s = root.to_pretty_string(|n| n.get_n_children() as f32);
+        assert_eq!(
+            s,
+            "6: 0".to_string()
+        );
+
+        root.build_n_moves_up_to_symmetry(1);
+        let s = root.to_pretty_string(|n| n.get_n_children() as f32);
+        assert_eq!(
+            s,
+            "6 =>\n  (0, 0) =>\n    1: 0\n    2: 0\n    3: 0\n    4: 0\n    5: 0\n    6: 0\n  (0, 1) =>\n    1: 0\n    2: 0\n    3: 0\n    4: 0\n    5: 0\n    6: 0\n  (0, 2) =>\n    1: 0\n    2: 0\n    3: 0\n    4: 0\n    5: 0\n    6: 0".to_string()
+        )
     }
 
 }

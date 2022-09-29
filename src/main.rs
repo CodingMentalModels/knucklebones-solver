@@ -8,7 +8,7 @@ use rand::seq::SliceRandom;
 use crate::board::board::Player;
 use crate::tree::tree::Node;
 use crate::board::board::{Board, Move, Outcome, Die};
-use crate::solver::solver::{Solver, SolverMode, Evaluation};
+use crate::solver::solver::{Solver, SolverMode, Evaluation, HeuristicDepthAndObjective};
 use crate::tree::tree::NodeType;
 
 const DEFAULT_DEPTH: usize = 4;
@@ -21,9 +21,27 @@ fn main() {
 			SubCommand::with_name("solve")
 				.about("Solve Knucklebones Position")
 				.arg(
-					Arg::with_name("Position")
-						.help("Knucklebones Position")						
-				)
+					Arg::with_name("Next to Act Board")
+						.help("Board for the player who's next to act.")						
+				).arg(
+					Arg::with_name("Next to Act Opponent's Board")
+						.help("Board for the player who's not next to act.")						
+				).arg(
+					Arg::with_name("Roll")
+						.help("Latest Roll.")						
+				).arg(
+                    Arg::with_name("Heuristic Depth")
+                        .help("Depth of the heuristic search.")
+                        .short('d')
+                        .long("depth")
+                        .takes_value(true)
+                ).arg(
+                    Arg::with_name("Max Depth to Brute Force")
+                        .help("Max depth to brute force.")
+                        .short('b')
+                        .long("max-brute-force-depth")
+                        .takes_value(true)
+                )
             )
         .subcommand(
             SubCommand::with_name("play")
@@ -44,12 +62,43 @@ fn main() {
             ).get_matches();
     
     if let Some(matches) = matches.subcommand_matches("solve") {
-        match matches.value_of("Position") {
-            Some(position) => {
-                unimplemented!()
+        match (matches.value_of("Next to Act Board"), matches.value_of("Next to Act Opponent's Board"), matches.value_of("Roll")) {
+            (Some(player_board), Some(opponent_board), Some(roll)) => {
+                match (Board::from_string(player_board.to_string()), Board::from_string(opponent_board.to_string())) {
+                    (Ok(player_board), Ok(opponent_board)) => {
+                        match roll.parse::<u8>() {
+                            Ok(roll) => {
+                                match Die::new(roll) {
+                                    Ok(die) => {
+                                        let depth = get_int_from_arg_or_else(matches.value_of("Heuristic Depth"), DEFAULT_DEPTH);
+                                        let max_depth_to_brute_force = get_int_from_arg_or_else(matches.value_of("Max Depth to Brute Force"), DEFAULT_MAX_DEPTH_TO_BRUTE_FORCE);
+                                        let mut game = Node::new(player_board, opponent_board, NodeType::Move(Player::Player1, die));
+                                        let mut solver = Solver::from_root(game);
+                                        let (maybe_tree, evaluation) = solver
+                                            .get_evaluation_tree(SolverMode::Hybrid(max_depth_to_brute_force, (depth, |x| Solver::difference_heuristic(x, 3.5))))
+                                            .expect("Evaluation tree should be constructable.");
+                                        println!("Evaluation: {}", evaluation.to_string());
+                                        println!("Tree: {}", maybe_tree.map_or("No Tree".to_string(), |x| x.to_pretty_string(|x| Solver::difference_heuristic(x, 3.5))));
+                                    },
+                                    Err(e) => {
+                                        println!("Invalid roll: {}", e);
+                                    }
+                                }                                
+                            },
+                            Err(_) => println!("Invalid Roll"),
+                        }
+                    },
+                    _ => println!("Invalid board.")
+                }
             },
-            None => {
-                println!("Missing Position!");
+            (None, _, _) => {
+                println!("Missing Next to Act Player's board!");
+            },
+            (_, None, _) => {
+                println!("Missing Next to Act Opponent's board!");
+            },
+            (_, _, None) => {
+                println!("Missing Roll!");
             }
         }
     } else if let Some(matches) = matches.subcommand_matches("play") {
@@ -131,6 +180,13 @@ fn main() {
         );
     } else {
         println!("Missing subcommand!");  
+    }
+}
+
+fn get_int_from_arg_or_else(arg: Option<&str>, default: usize) -> usize {
+    match arg {
+        Some(arg) => arg.parse::<usize>().unwrap(),
+        None => default
     }
 }
 
