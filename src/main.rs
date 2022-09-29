@@ -12,7 +12,7 @@ use crate::solver::solver::{Solver, SolverMode, Evaluation};
 use crate::tree::tree::NodeType;
 
 const DEFAULT_DEPTH: usize = 4;
-const DEFAULT_MAX_DEPTH_TO_BRUTE_FORCE: usize = 4;
+const DEFAULT_MAX_DEPTH_TO_BRUTE_FORCE: usize = 1;
 
 fn main() {
     let matches = App::new("Knucklebones (Cult of the Lamb) Solver")
@@ -122,7 +122,13 @@ fn main() {
             },
             Outcome::InProgress => panic!("Game is over, but outcome is in progress.")
         };
-        println!("Game Over!  {}\nPlayer: {}\nSolver: {}", outcome, game.get_score(player), game.get_score(player.opponent()));
+        println!(
+            "Game Over!  {}\nFinal Board: {}\nPlayer: {}\nSolver: {}",
+            outcome,
+            game.to_string_from_perspective(player),
+            game.get_score(player),
+            game.get_score(player.opponent())
+        );
     } else {
         println!("Missing subcommand!");  
     }
