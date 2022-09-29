@@ -100,6 +100,52 @@ impl Node {
         }
     }
 
+    pub fn to_pretty_string(&self, objective_function: fn(&Node) -> f32) -> String {        
+        self.to_pretty_vector(objective_function, 0, None).join("\n")
+    }
+
+    fn to_pretty_vector(&self, objective_function: fn(&Node) -> f32, depth: usize, last_move: Option<Move>) -> Vec<String> {
+        let mut to_return = Vec::new();
+        let mut indent = String::new();
+        for _ in 0..depth {
+            indent.push_str("  ");
+        }
+        let suffix = if self.get_n_children() > 0 {
+            " =>".to_string()
+        } else {
+            "".to_string()
+        };
+        let last_move_string = match last_move {
+            Some(m) => m.to_string(),
+            None => "Unknown Move".to_string(),
+        };
+        match self.get_node_type() {
+            NodeType::Roll(player) => {
+                if self.get_n_children() > 0 {
+                    to_return.push(format!("{}{}{}", indent, last_move_string, suffix));
+                    to_return.append(&mut self.children.iter().map(|child| child.to_pretty_vector(objective_function, depth + 1, None)).flatten().collect());
+                } else {
+                    to_return.push(format!("{}{}: {}", indent, last_move_string, objective_function(self)));
+                }
+                
+            },
+            NodeType::Move(player, die) => {
+                if self.get_n_children() > 0 {
+                    to_return.push(format!("{}{}{}", indent, die.to_string(), suffix));
+                    to_return.append(
+                        &mut self.get_moves()
+                        .expect("Must be a move node").iter().map(
+                            |m| self.get_child_from_move(*m).expect("Child is guaranteed to exist.")
+                                .to_pretty_vector(objective_function, depth + 1, Some(*m))
+                        ).flatten().collect());
+                } else {
+                    to_return.push(format!("{}{}: {}", indent, die.to_string(), objective_function(self)));
+                }
+            },
+        }
+        return to_return
+    }
+
     pub fn is_legal_move(&self, m: Move) -> bool {
         match self.node_type {
             NodeType::Roll(_) => false,
@@ -250,12 +296,12 @@ impl Node {
             }
             match player.compare_evaluation(average_evaluation, best_evaluation) {
                 Comparison::Equal => {
-                    to_return.add_move(next_move);
+                    to_return.children.push(child_roll_node.clone());
                 },
                 Comparison::Better => {
                     best_evaluation = average_evaluation;
                     to_return = self.clone_without_children();
-                    to_return.add_move(next_move);
+                    to_return.children.push(child_roll_node.clone());
                 },
                 Comparison::Worse => {},
             }
@@ -823,6 +869,25 @@ mod test_tree {
         let node = Node::new(player_1_board.clone(), player_2_board.clone(), NodeType::Roll(Player::Player2));
         assert_eq!(node.get_moves_left_ignoring_elimination(), 4);
 
+    }
+
+    #[test]
+    fn test_tree_pretty_prints() {
+        let player_1_board = Board::empty();
+        let player_2_board = Board::empty();
+        let mut root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player1, Die::Six));
+        let s = root.to_pretty_string(|n| n.get_n_children() as f32);
+        assert_eq!(
+            s,
+            "6: 0".to_string()
+        );
+
+        root.build_n_moves_up_to_symmetry(1);
+        let s = root.to_pretty_string(|n| n.get_n_children() as f32);
+        assert_eq!(
+            s,
+            "6 =>\n  (0, 0) =>\n    1: 0\n    2: 0\n    3: 0\n    4: 0\n    5: 0\n    6: 0\n  (0, 1) =>\n    1: 0\n    2: 0\n    3: 0\n    4: 0\n    5: 0\n    6: 0\n  (0, 2) =>\n    1: 0\n    2: 0\n    3: 0\n    4: 0\n    5: 0\n    6: 0".to_string()
+        )
     }
 
 }
