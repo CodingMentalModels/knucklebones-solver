@@ -25,6 +25,16 @@ impl Move {
         self.column
     }
 
+    pub fn all() -> Vec<Move> {
+        let mut moves = Vec::new();
+        for row in 0..3 {
+            for column in 0..3 {
+                moves.push(Move::new(row, column));
+            }
+        }
+        moves
+    }
+
     pub fn to_string(&self) -> String {
         format!("({}, {})", self.row, self.column)
     }
