@@ -277,36 +277,47 @@ impl Node {
             Player::Player1 => f32::NEG_INFINITY,
             Player::Player2 => f32::INFINITY,
         };
-        let mut to_return = self.clone_without_children();
+        let mut evaluation_tree = self.clone_without_children();
         for next_move in legal_moves {
             let child_roll_node = self.get_child_from_move(next_move)
                 .expect("Won't error because we know the moves are legal.");
             if child_roll_node.is_game_over() {
                 // It must be the case that we're making the only legal move so can just evaluate and return.
-                to_return.add_move(next_move).expect("Won't error because we know the moves are legal.");
-                return Ok((Some(to_return), objective_function(child_roll_node)));
+                evaluation_tree.add_move(next_move).expect("Won't error because we know the moves are legal.");
+                return Ok((Some(evaluation_tree), objective_function(child_roll_node)));
             }
             let mut average_evaluation = 0.;
             let average_denominator = child_roll_node.get_n_children() as f32;
+            let mut roll_node_evaluation_tree = child_roll_node.clone_without_children();
             for child_move_node in child_roll_node.children.iter() {
-                let (_, child_evaluation) = child_move_node
+                let (child_evaluation_tree, child_evaluation) = child_move_node
                     .get_evaluation_tree(objective_function)
                     .expect("Won't error because we're in a Move node type.");
+                match child_evaluation_tree {
+                    Some(child_evaluation_tree) => {
+                        roll_node_evaluation_tree.children.push(child_evaluation_tree);
+                    },
+                    None => {
+                        // This is a leaf node, so we can just push the child move node on.
+                        // Note .clone() and .clone_without_children() should be equivalent here.
+                        roll_node_evaluation_tree.children.push(child_move_node.clone_without_children());
+                    },
+                }
                 average_evaluation += child_evaluation / average_denominator;
             }
             match player.compare_evaluation(average_evaluation, best_evaluation) {
                 Comparison::Equal => {
-                    to_return.children.push(child_roll_node.clone());
+                    evaluation_tree.children.push(roll_node_evaluation_tree);
                 },
                 Comparison::Better => {
                     best_evaluation = average_evaluation;
-                    to_return = self.clone_without_children();
-                    to_return.children.push(child_roll_node.clone());
+                    evaluation_tree = self.clone_without_children();
+                    evaluation_tree.children.push(roll_node_evaluation_tree);
                 },
                 Comparison::Worse => {},
             }
         }
-        return Ok((Some(to_return), best_evaluation));
+        return Ok((Some(evaluation_tree), best_evaluation));
     }
 
     pub fn with_move_made(&self, m: Move) -> Result<Node, String> {
