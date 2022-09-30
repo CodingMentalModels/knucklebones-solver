@@ -12,6 +12,10 @@ impl Solver {
         }
     }
 
+    pub fn get_root(&self) -> &Node {
+        &self.root
+    }
+
     pub fn get_evaluation_tree(&mut self, solver_mode: SolverMode) -> Result<(Option<Node>, Evaluation), String> {
         match solver_mode {
             SolverMode::BruteForce => self.get_evaluation_tree_brute_force(),

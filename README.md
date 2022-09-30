@@ -11,15 +11,21 @@
 
 ## Usage
 
-* Specify a position (die roll, player 1 board, player 2 board) and get the optimal placement:
+Use `./target/debug/knucklebones-solver --help` from the root of the repo to see all of the options.
 
-`knucklebones-solver.exe solve 5 "___
+* `./target/debug/knucklebones-solver solve` Specify a position (die roll, player 1 board, player 2 board) and get the evaluation and optionally the full tree:
+
+```
+`knucklebones-solver.exe solve "___
 ___
 ___"
 
 "___
 ___
 ___"
+
+5
+```
 
 ## Design
 

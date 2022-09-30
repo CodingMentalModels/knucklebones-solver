@@ -30,6 +30,11 @@ fn main() {
 					Arg::with_name("Roll")
 						.help("Latest Roll.")						
 				).arg(
+                    Arg::with_name("Full Tree")
+                        .help("Print full tree.")
+                        .short('t')
+                        .long("tree")
+                ).arg(
                     Arg::with_name("Heuristic Depth")
                         .help("Depth of the heuristic search.")
                         .short('d')
@@ -73,12 +78,17 @@ fn main() {
                                         let depth = get_int_from_arg_or_else(matches.value_of("Heuristic Depth"), DEFAULT_DEPTH);
                                         let max_depth_to_brute_force = get_int_from_arg_or_else(matches.value_of("Max Depth to Brute Force"), DEFAULT_MAX_DEPTH_TO_BRUTE_FORCE);
                                         let mut game = Node::new(player_board, opponent_board, NodeType::Move(Player::Player1, die));
-                                        let mut solver = Solver::from_root(game);
+                                        let mut solver = Solver::from_root(game.clone());
                                         let (maybe_tree, evaluation) = solver
                                             .get_evaluation_tree(SolverMode::Hybrid(max_depth_to_brute_force, (depth, |x| Solver::difference_heuristic(x, 3.5))))
                                             .expect("Evaluation tree should be constructable.");
                                         println!("Evaluation: {}", evaluation.to_string());
-                                        println!("Tree: {}", maybe_tree.map_or("No Tree".to_string(), |x| x.to_pretty_string(|x| Solver::difference_heuristic(x, 3.5))));
+                                        let evaluation_tree = maybe_tree.expect("Game should still be in progress.");
+                                        let best_moves = evaluation_tree.get_moves().expect("Guaranteed to be on a move node.");
+                                        println!("Best Moves: {}", best_moves.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", "));
+                                        if matches.is_present("Full Tree") {
+                                            println!("Optimal Tree: {}", evaluation_tree.to_pretty_string(|x| Solver::difference_heuristic(x, 3.5)));
+                                        }
                                     },
                                     Err(e) => {
                                         println!("Invalid roll: {}", e);
