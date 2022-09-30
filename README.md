@@ -1,6 +1,8 @@
 # Knucklebones Solver
 
-## Rules
+Command Line Interface (CLI) solver for the [Cult of the Lamb](https://store.steampowered.com/app/1313140/Cult_of_the_Lamb/) minigame Knucklebones.  
+
+## Knucklebones Rules
 
 * Each player has a 3x3 grid of squares where they can place dice.  
 * The players take turns rolling a die and then placing it.
@@ -11,7 +13,7 @@
 
 ## Usage
 
-Use `./target/debug/knucklebones-solver --help` from the root of the repo to see all of the options.
+Clone the Repo and run `./target/debug/knucklebones-solver --help` from the root to see all of the options.
 
 * `./target/debug/knucklebones-solver solve` Specify a position (die roll, player 1 board, player 2 board) and get the evaluation and optionally the full tree:
 
@@ -27,51 +29,49 @@ ___"
 5
 ```
 
-## Design
+## Methodology
 
-### Implement the primitives
-* Players
-* Squares
-* Dice
-* Score
+Because the game tree for Knucklebones is too big to brute force, we compute N moves ahead (4 by default) and then use a heuristic to min-max to approximate optimal play:
+* For each player, we calculate the number of moves remaining if no eliminations occur.  
+* We get a "moves remaining bonus" by multiplying the moves remaining by 3.5, an average die roll (1 + 2 + 3 + 4 + 5 + 6)/6
+* We compute a modified score for each player as their current score plus the moves remaining bonus.
+* We use the difference between the two players' modified scores as the evaluation of the current position, where positive numbers denote Player 1 winning and negative numbers denote Player 2 winning.
 
-### Build the game tree
+The motivation for this heuristic is that each player wants to maximize their score and minimize their opponent's score, but it's also critical that we take into account that a player with fewer empty squares will likely get to populate all of them, whereas her opponent will likely only get to populate a few before the game ends.  
 
-* Build the tree in a way that prunes bad branches and reduces the scale of overall tree to something many orders of magnitude less than 6^18*(9!)^2.  
-* Notice that the game is symmetric along columns -- i.e. you can pick any row to put a given die in in a given column and the resulting position is equivalent.
-* Three possible approaches:
-    * Based on the current decision point, eliminate dominated strategies and then continue constructing the tree.  Only works if:
-        * There's a reliable way to identify dominated strategies
-        * Removing dominated strategies results in a small enough tree -- This failes to be true since 6^17 is huge.  
-    * Build the subtree n moves out and then heuristically evaluate the positions.  
-        * Need to pick a depth
-        * Need a heuristic -- Considerations:
-            * What's the value of the die?
-            * Does this die double or triple a column?
-            * Does this die eliminate opponents' dice and if so, how many?
-            * Is the game about to end?
-    * Regret Minimization -- Run N iterations of the game and after each one update the player's strategies to use the one that performed the least badly against opponent's maximally exploitive strategy.    
-* Let's go with the heuristic-based approach, with the following heuristic:
-    * If we can brute force the game, i.e. we're some small number of moves from the end (perhaps 3 moves per player, which makes the tree < 6^6*(3!)^2 nodes, which should be managable).
-    * Heuristic = difference between the player's score and opponent's score, assuming that each empty space that would be populated before the game ends assuming no eliminations is populated with an average die (3.5)
-
-
-Tricky Case:
-How should we compare the following moves?
-* Move 1: Half of opponent's rolls lead to forced win for us, half lead to an evaluation (heuristic) of 0.
-* Move 2: All of opponent's rolls lead to evaluation of +N (we're winning by N).
-
-Unclear what N should be to make us indifferent, but this should happen very rarely and when it does it will usually be extremely clear how we should compare the cases (e.g. eliminating 3 opponent's 5s vs. tripling our on 5s is clearly better).  So, let's give a bonus of 3 to forced winning line.
-
-### Solve the game
-
-### Expose a Command Line Interface to allow a user to solve the game from any position
+Sources of error in the heuristic:
+* The choice of the number 3.5 doesn't take into account any doubling or tripling of dice.  Even by chance, this will happen, and since players get to choose their best moves, it'll happen more than by chance.  This causes the heuristic to **understate** the expected point totals.
+* The heuristic doesn't take elimination into account, which means that Position (the fact that the player who's going to finish first will have at least one more die played) is overvalued, since it's assumed to be permanent.  This causes the heuristic to **overstate** the expected point totals.  
 
 
 ## Insights
 
-* Position seems to have a lot of meaning.  e.g. after a 2 and a 6 have been rolled and played on separate columns, player 1 is a 2.6 point favorite, despite being down 4 points and only having one more move.
+* Interesting situation: where should we put our 6?  On the one hand, (0, 2) keeps triple 6 outs alive; on the other, (1, 1) gives us 556 and 665 outs.  
+```
+./target/debug/knucklebones-solver.exe solve -d 5 -t 
+
+"35_
+___
+___"
+
+"__4
+__4
+___" 6
+```
+Answer: (1, 1) is better, because if opponent rolls a 6, we make him choose between eliminating ours and doubling his.  (0, 2) gives him an easy choice.
+
+* The overvaluing of position seems to be a more important effect than the undervaluing of doubles and triples.  e.g. looking at a simple case below at depth 1 vs. depth 5, depth 5 is much closer to being even than depth 1.
+```
+./target/debug/knucklebones-solver.exe solve -d 5 -t 
+
+"2__
+___
+___"
+
+"___
+___
+___" 1
+```
 
 ### Questions
 
-* Solver likes to stack numbers on its second move, e.g. when it's going second and rolls a 2 and 6 vs. a 5 and a 1 it plays them on (0, 2), (1, 2) vs. normal looking play.  This seems unintuitive because it doesn't allow multiplication of the 6 as easily and blocks potential eliminations.  Note in our case the Player's 1 was on (0, 2) so maybe the eliminations aren't important.
