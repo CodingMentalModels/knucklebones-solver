@@ -13,7 +13,9 @@ Command Line Interface (CLI) solver for the [Cult of the Lamb](https://store.ste
 
 ## Usage
 
-Clone the Repo and run `./target/debug/knucklebones-solver --help` from the root to see all of the options.
+Clone the Repo and run `cargo build` to compile it. 
+
+Run `./target/debug/knucklebones-solver --help` from the root to see all of the options.
 
 * `./target/debug/knucklebones-solver solve` Specify a position (die roll, player 1 board, player 2 board) and get the evaluation and optionally the full tree:
 

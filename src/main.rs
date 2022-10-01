@@ -82,6 +82,9 @@ fn main() {
                                         let (maybe_tree, evaluation) = solver
                                             .get_evaluation_tree(SolverMode::Hybrid(max_depth_to_brute_force, (depth, |x| Solver::difference_heuristic(x, 3.5))))
                                             .expect("Evaluation tree should be constructable.");
+                                        println!("Player 1 Board: {}", game.get_player_1_board());
+                                        println!("Player 2 Board: {}", game.get_player_2_board());
+                                        println!("Roll: {}", die.to_string());
                                         println!("Evaluation: {}", evaluation.to_string());
                                         let evaluation_tree = maybe_tree.expect("Game should still be in progress.");
                                         let best_moves = evaluation_tree.get_moves().expect("Guaranteed to be on a move node.");
@@ -151,7 +154,7 @@ fn main() {
                             }
                         }
                     } else {
-                        let mut solver = Box::new(Solver::from_root(game.clone()));
+                        let mut solver = Solver::from_root(game.clone());
                         let result = solver.get_best_moves_and_evaluation(
                             SolverMode::Hybrid(max_depth_to_brute_force, (heuristic_depth, |x| Solver::difference_heuristic(x, 3.5)))
                         );
@@ -182,11 +185,11 @@ fn main() {
             Outcome::InProgress => panic!("Game is over, but outcome is in progress.")
         };
         println!(
-            "Game Over!  {}\nFinal Board: {}\nPlayer: {}\nSolver: {}",
-            outcome,
+            "\nGame Over!\n\nFinal Board: {}\nPlayer: {}\nSolver: {}\nOutcome: {}\n",
             game.to_string_from_perspective(player),
             game.get_score(player),
-            game.get_score(player.opponent())
+            game.get_score(player.opponent()),
+            outcome,
         );
     } else {
         println!("Missing subcommand!");  
