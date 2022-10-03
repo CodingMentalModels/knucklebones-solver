@@ -64,7 +64,27 @@ fn main() {
                         .long("max-brute-force-depth")
                         .takes_value(true)
                 )
-            ).get_matches();
+            )
+        .subcommand(
+            SubCommand::with_name("tree")
+                .about("Print the game tree from a given position.")
+                .arg(
+					Arg::with_name("Next to Act Board")
+						.help("Board for the player who's next to act.")						
+				).arg(
+					Arg::with_name("Next to Act Opponent's Board")
+						.help("Board for the player who's not next to act.")						
+				).arg(
+					Arg::with_name("Roll")
+						.help("Latest Roll.")						
+				).arg(
+                    Arg::with_name("Heuristic Depth")
+                        .help("Depth of the heuristic search.")
+                        .short('d')
+                        .long("depth")
+                        .takes_value(true)
+                )
+        ).get_matches();
     
     if let Some(matches) = matches.subcommand_matches("solve") {
         match (matches.value_of("Next to Act Board"), matches.value_of("Next to Act Opponent's Board"), matches.value_of("Roll")) {
@@ -191,6 +211,56 @@ fn main() {
             game.get_score(player.opponent()),
             outcome,
         );
+    } else if let Some(matches) = matches.subcommand_matches("tree") { 
+        match (matches.value_of("Next to Act Board"), matches.value_of("Next to Act Opponent's Board"), matches.value_of("Roll")) {
+            (Some(player_board), Some(opponent_board), Some(roll)) => {
+                match Board::from_string(player_board.to_string()) {
+                    Ok(player_board) => {
+                        match Board::from_string(opponent_board.to_string()) {
+                            Ok(opponent_board) => {
+                                match roll.parse::<u8>() {
+                                    Ok(die_value) => {
+                                        let die = match Die::new(die_value) {
+                                            Ok(die) => die,
+                                            Err(e) => {
+                                                println!("Invalid roll: {}", e);
+                                                return;
+                                            }
+                                        };
+                                        let mut game = Node::new(player_board, opponent_board, NodeType::Move(Player::Player1, die));
+                                        match matches.value_of("Heuristic Depth") {
+                                            Some(depth_string) => {
+                                                let depth = depth_string.parse::<usize>().unwrap();
+                                                game.build_n_moves_up_to_symmetry(depth);
+                                                println!("{}", game.to_pretty_string(|x| Solver::difference_heuristic(x, 3.5)));
+                                            },
+                                            None => {
+                                                game.build_entire_tree_up_to_symmetry();
+                                                println!("{}", game.to_pretty_string(|x| Solver::difference_heuristic(x, 3.5)));
+                                            }
+                                        };
+                                    },
+                                    Err(e) => {
+                                        println!("Invalid roll: {}", e);
+                                    }
+                                }                                
+                            },
+                            Err(_) => println!("Invalid Board"),
+                        }
+                    },
+                    _ => println!("Invalid board.")
+                }
+            },
+            (None, _, _) => {
+                println!("Missing Next to Act Player's board!");
+            },
+            (_, None, _) => {
+                println!("Missing Next to Act Opponent's board!");
+            },
+            (_, _, None) => {
+                println!("Missing Roll!");
+            }
+        }
     } else {
         println!("Missing subcommand!");  
     }

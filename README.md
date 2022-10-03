@@ -31,6 +31,22 @@ ___"
 5
 ```
 
+* `./target/debug/knucklebones-solver tree` Specify a position (die roll, player 1 board, player 2 board) and get the full tree from that position.  Adding `-d [depth]` will only go `[depth]` moves ahead and is recommended unless your in the endgame.  Example:
+
+```
+`knucklebones-solver.exe tree -d 4 "___
+___
+___"
+
+"___
+___
+___"
+
+5
+```
+
+* `./target/debug/knucklebones-solver play` Play against the solver!
+
 ## Methodology
 
 Because the game tree for Knucklebones is too big to brute force, we compute N moves ahead (4 by default) and then use a heuristic to min-max to approximate optimal play:
@@ -75,5 +91,12 @@ ___
 ___" 1
 ```
 
-### Questions
+* Also, running the solver at an even depth vs. an odd depth makes a difference, since for odd depths we're giving Player 1 one more opportunity to take advantage of doubles and triples.  We should tend to prefer even depths to try to balance out this effect.  e.g. the position above evaluates to `-2.28` when run on depth `5`, whereas it evaluates to `-7.63` on depth `4`.  
 
+## Notes & Improvements
+
+* There are **lots** of opportunities for optimization here.  For example:
+    * Implementing alpha-beta search.
+    * Memoizing the results of computing subtrees.
+    * Computing the tree for high depths hits stack overflows due to recursion.  Running this in a loop instead would help here.
+    * Storing a lookup table of common evaluations (e.g. opening position at various depths).  
