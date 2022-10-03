@@ -147,31 +147,25 @@ impl Board {
         let mut sum = 0;
         let mut column_index = 0;
         for column in self.columns.iter() {
-            let mut column_sum = 0;
-            for element in column {
-                match element {
-                    Square::Empty => (),
-                    Square::Die(die) => column_sum += die.to_value(),
-                }
-            }
-            column_sum = column_sum * self.get_column_multiplicity(column_index);
+            let column_sum = Self::sum_column(column[0], column[1], column[2]);
             sum += column_sum;
             column_index += 1;
         }
         return sum;
     }
 
-    pub fn get_column_multiplicity(&self, column_index: usize) -> u16 {
-        let column = &self.columns[column_index];
-        if (column[0] != Square::Empty) && (column[0] == column[1]) && (column[1] == column[2]) {
-            return 3;
+    pub fn sum_column(x: Square, y: Square, z: Square) -> u16 {
+        if x == y && y == z {
+            return (x + y + z)*3;
+        } else if x == y {
+            return (x + y)*2 + z;
+        } else if y == z {
+            return (y + z)*2 + x;
+        } else if x == z {
+            return (x + z)*2 + y;
+        } else {
+            return x + y + z;
         }
-        if  ((column[0] != Square::Empty) && (column[0] == column[1])) ||
-            ((column[1] != Square::Empty) && (column[1] == column[2])) ||
-            ((column[0] != Square::Empty) && (column[0] == column[2])) {
-            return 2;
-        }
-        return 1;
     }
 
     pub fn to_string_with_square_highlighted(&self, row: usize, col: usize) -> String {
@@ -252,6 +246,41 @@ impl Board {
 pub enum Square {
     Empty,
     Die(Die),
+}
+
+impl Add<Square> for Square {
+    type Output = u16;
+
+    fn add(self, other: Square) -> u16 {
+        match (self, other) {
+            (Square::Empty, Square::Empty) => 0,
+            (Square::Empty, Square::Die(die)) => die.to_value(),
+            (Square::Die(die), Square::Empty) => die.to_value(),
+            (Square::Die(die1), Square::Die(die2)) => die1.to_value() + die2.to_value(),
+        }
+    }
+}
+
+impl Add<u16> for Square {
+    type Output = u16;
+
+    fn add(self, other: u16) -> u16 {
+        match self {
+            Square::Empty => other,
+            Square::Die(die) => die.to_value() + other,
+        }
+    }
+}
+
+impl Add<Square> for u16 {
+    type Output = u16;
+
+    fn add(self, other: Square) -> u16 {
+        match other {
+            Square::Empty => self,
+            Square::Die(die) => self + die.to_value(),
+        }
+    }
 }
 
 impl Square {
@@ -522,13 +551,19 @@ mod test_board_tests {
         assert_eq!(b.sum(), 7);
 
         let b = Board::from_string("5__\n5_2\n1__".to_string()).unwrap();
-        assert_eq!(b.sum(), 24);
+        assert_eq!(b.sum(), 23);
 
         let b = Board::from_string("4_2\n5_2\n1_2".to_string()).unwrap();
         assert_eq!(b.sum(), 28);
 
         let b = Board::from_string("412\n542\n162".to_string()).unwrap();
         assert_eq!(b.sum(), 39);
+
+        let b = Board::from_string("661\n142\n621".to_string()).unwrap();
+        assert_eq!(b.sum(), 43);
+
+        let b = Board::from_string("256\n1_2\n626".to_string()).unwrap();
+        assert_eq!(b.sum(), 42);
         
     }
 

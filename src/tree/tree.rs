@@ -542,7 +542,7 @@ mod test_tree {
         let player_2_board = Board::from_string("15_\n333\n12_".to_string()).unwrap();
         let root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player2, Die::Five));
 
-        assert_eq!(root.get_scores(), (6 + 24 + 18, 10 + 10 + 3));
+        assert_eq!(root.get_scores(), (6 + 22 + 13, 7 + 10 + 3));
         assert_eq!(root.get_outcome(), Outcome::Victory(Player::Player1));
 
         let player_1_board = Board::from_string("111\n111\n111".to_string()).unwrap();

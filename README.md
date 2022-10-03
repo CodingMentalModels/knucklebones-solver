@@ -6,7 +6,7 @@ Command Line Interface (CLI) solver for the [Cult of the Lamb](https://store.ste
 
 * Each player has a 3x3 grid of squares where they can place dice.  
 * The players take turns rolling a die and then placing it.
-* If a player places two dice of the same value on the same column, then the value of that column is doubled.  If three dice, then it's tripled.
+* If a player places two dice of the same value on the same column, then the value of those doubled dice are doubled.  If three dice, then it's tripled.
 * If a player places a die of the same value as one (or more) in the opposing column, the the opponent's dice of that value are removed.
 * The game ends when one player has placed a die in each of the 9 squares.
 * The winner is the one with the highest total, taking doubles and triples into account.

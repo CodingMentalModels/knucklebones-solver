@@ -176,15 +176,15 @@ mod test_solver {
         let result = solver.get_best_moves_and_evaluation(SolverMode::BruteForce);
         assert!(result.is_err());
 
-        let player_1_board = Board::from_string("651\n142\n62_".to_string()).unwrap(); // 40 before move.
+        let player_1_board = Board::from_string("661\n142\n62_".to_string()).unwrap(); // 40 before move.
         let player_2_board = Board::from_string("256\n1_2\n62_".to_string()).unwrap(); // 28 before move.
         // Player 2 has two moves:
         // (1, 1) => 30
         // (2, 2) => 44
         // Player 1 has one move, (1, 1):
         // Based on rolls, that means the score is:
-        // 1 => 45 => Player 1 wins
-        // 2 => 47 => Player 1 wins
+        // 1 => 43 => Player 2 wins
+        // 2 => 46 => Player 1 wins
         // 3 => 43 => Player 2 wins iff Player 2 played (2, 2), else Player 1 wins
         // 4 => 44 => Draws iff Player 2 played (2, 2), else wins
         // 5 => 45 => Player 1 wins
@@ -192,7 +192,7 @@ mod test_solver {
         let root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player2, Die::Six));
         let mut solver = Solver::from_root(root);
         let (best_moves, evaluation) = solver.get_best_moves_and_evaluation(SolverMode::BruteForce).unwrap();
-        assert_eq!((best_moves, evaluation), (vec![Move::new(2, 2)], Evaluation::new((4.*1. + 1.*0. + 1.*(-1.))/6.)));
+        assert_eq!((best_moves, evaluation), (vec![Move::new(2, 2)], Evaluation::new((3.*1. + 1.*0. + 2.*(-1.))/6.)));
     }
 
     #[test]
@@ -213,23 +213,26 @@ mod test_solver {
             )
         );
 
-        let player_1_board = Board::from_string("651\n142\n62_".to_string()).unwrap(); // 40 before move.
+        let player_1_board = Board::from_string("661\n142\n62_".to_string()).unwrap(); // 40 before move.
         let player_2_board = Board::from_string("256\n1_2\n62_".to_string()).unwrap(); // 24 before move.
+        assert_eq!(player_1_board.sum(), 40);
+        assert_eq!(player_2_board.sum(), 24);
         // Player 2 has two moves:
         // (1, 1) => 30
-        // (2, 2) => 44
+        // (2, 2) => 42
         // Player 1 has one move, (1, 1):
         // Based on rolls, that means the score is:
-        // 1 => 45 => Player 1 wins and diff = 1
-        // 2 => 47 + 4 (due to elimination of the 2) => Player 1 wins and diff = 7
-        // 3 => 43 => Player 2 wins iff Player 2 played (2, 2), else Player 1 wins.  diff = -1
-        // 4 => 44 => Draws iff Player 2 played (2, 2), else wins.  Diff = 0.
-        // 5 => 45 => Player 1 wins.  Diff = 1.
-        // 6 => 46 + 26 (due to elimination of 2 6's) => PLayer 1 wins.  Diff = 28
+        // 1 => 43 => Player 1 wins and diff = 1
+        // 2 => 46 + 2 (due to elimination of the 2) => Player 1 wins and diff = 6
+        // 3 => 43 => Player 1 wins.  diff = 1
+        // 4 => 44 => Player 1 wins.  Diff = 2.
+        // 5 => 45 => Player 1 wins.  Diff = 3.
+        // 6 => 46 + 24 (due to elimination of 2 6's) => Player 1 wins.  Diff = 28
         let root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player2, Die::Six));
         let mut solver = Solver::from_root(root);
         let (best_moves, evaluation) = solver.get_best_moves_and_evaluation(SolverMode::Heuristic((5, |x| Solver::difference_heuristic(x, 3.5)))).unwrap();
-        assert_eq!((best_moves, evaluation), (vec![Move::new(2, 2)], Evaluation::new((1. + 7. - 1. + 0. + 1. + 28.)/6.)));
+        assert_eq!(best_moves, vec![Move::new(2, 2)]);
+        assert!((evaluation.0 - (1. + 6. + 1. + 2. + 3. + 28.)/6.).abs() < 0.0001);
     }
 
     #[test]
@@ -338,7 +341,7 @@ mod test_solver {
         assert_eq!(Solver::difference_heuristic(&after_move, 0.), -5.0);
         assert_eq!(Solver::difference_heuristic(&after_move, 3.5), -1.5);
 
-        let player_1_board = Board::from_string("651\n142\n62_".to_string()).unwrap(); // 40 before move.
+        let player_1_board = Board::from_string("661\n142\n62_".to_string()).unwrap(); // 40 before move.
         let player_2_board = Board::from_string("256\n1_2\n62_".to_string()).unwrap(); // 24 before move.
         let mut root = Node::new(player_1_board, player_2_board, NodeType::Move(Player::Player2, Die::Six));
         assert_eq!(Solver::difference_heuristic(&root, 0.), 40.0 - 24.0);
@@ -349,8 +352,8 @@ mod test_solver {
             .get_child_from_move(Move::new(2, 2)).unwrap()
             .get_child_from_roll(Die::Two).unwrap()
             .get_child_from_move(Move::new(2, 2)).unwrap();
-        assert_eq!(Solver::difference_heuristic(&after_final_move, 0.0), 7.0);
-        assert_eq!(Solver::difference_heuristic(&after_final_move, 3.5), 7.0);
+        assert_eq!(Solver::difference_heuristic(&after_final_move, 0.0), 6.0);
+        assert_eq!(Solver::difference_heuristic(&after_final_move, 3.5), 6.0);
     }
 
 }
