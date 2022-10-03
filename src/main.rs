@@ -3,7 +3,7 @@ mod tree;
 mod solver;
 
 use std::io;
-use clap::{App, SubCommand, Arg};
+use clap::{App, SubCommand, Arg, ArgMatches};
 use rand::seq::SliceRandom;
 use crate::board::board::Player;
 use crate::tree::tree::Node;
@@ -87,52 +87,29 @@ fn main() {
         ).get_matches();
     
     if let Some(matches) = matches.subcommand_matches("solve") {
-        match (matches.value_of("Next to Act Board"), matches.value_of("Next to Act Opponent's Board"), matches.value_of("Roll")) {
-            (Some(player_board), Some(opponent_board), Some(roll)) => {
-                match (Board::from_string(player_board.to_string()), Board::from_string(opponent_board.to_string())) {
-                    (Ok(player_board), Ok(opponent_board)) => {
-                        match roll.parse::<u8>() {
-                            Ok(roll) => {
-                                match Die::new(roll) {
-                                    Ok(die) => {
-                                        let depth = get_int_from_arg_or_else(matches.value_of("Heuristic Depth"), DEFAULT_DEPTH);
-                                        let max_depth_to_brute_force = get_int_from_arg_or_else(matches.value_of("Max Depth to Brute Force"), DEFAULT_MAX_DEPTH_TO_BRUTE_FORCE);
-                                        let mut game = Node::new(player_board, opponent_board, NodeType::Move(Player::Player1, die));
-                                        let mut solver = Solver::from_root(game.clone());
-                                        let (maybe_tree, evaluation) = solver
-                                            .get_evaluation_tree(SolverMode::Hybrid(max_depth_to_brute_force, (depth, |x| Solver::difference_heuristic(x, 3.5))))
-                                            .expect("Evaluation tree should be constructable.");
-                                        println!("Player 1 Board: {}", game.get_player_1_board());
-                                        println!("Player 2 Board: {}", game.get_player_2_board());
-                                        println!("Roll: {}", die.to_string());
-                                        println!("Evaluation: {}", evaluation.to_string());
-                                        let evaluation_tree = maybe_tree.expect("Game should still be in progress.");
-                                        let best_moves = evaluation_tree.get_moves().expect("Guaranteed to be on a move node.");
-                                        println!("Best Moves: {}", best_moves.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", "));
-                                        if matches.is_present("Full Tree") {
-                                            println!("Optimal Tree: {}", evaluation_tree.to_pretty_string(|x| Solver::difference_heuristic(x, 3.5)));
-                                        }
-                                    },
-                                    Err(e) => {
-                                        println!("Invalid roll: {}", e);
-                                    }
-                                }                                
-                            },
-                            Err(_) => println!("Invalid Roll"),
-                        }
-                    },
-                    _ => println!("Invalid board.")
-                }
-            },
-            (None, _, _) => {
-                println!("Missing Next to Act Player's board!");
-            },
-            (_, None, _) => {
-                println!("Missing Next to Act Opponent's board!");
-            },
-            (_, _, None) => {
-                println!("Missing Roll!");
+        let (player_board, opponent_board, die) = match unpack_next_to_act_opponent_and_roll(matches) {
+            Ok((player_board, opponent_board, die)) => (player_board, opponent_board, die),
+            Err(e) => {
+                println!("{}", e);
+                return;
             }
+        };
+        let depth = get_int_from_arg_or_else(matches.value_of("Heuristic Depth"), DEFAULT_DEPTH);
+        let max_depth_to_brute_force = get_int_from_arg_or_else(matches.value_of("Max Depth to Brute Force"), DEFAULT_MAX_DEPTH_TO_BRUTE_FORCE);
+        let mut game = Node::new(player_board, opponent_board, NodeType::Move(Player::Player1, die));
+        let mut solver = Solver::from_root(game.clone());
+        let (maybe_tree, evaluation) = solver
+            .get_evaluation_tree(SolverMode::Hybrid(max_depth_to_brute_force, (depth, |x| Solver::difference_heuristic(x, 3.5))))
+            .expect("Evaluation tree should be constructable.");
+        println!("Player 1 Board: {}", game.get_player_1_board());
+        println!("Player 2 Board: {}", game.get_player_2_board());
+        println!("Roll: {}", die.to_string());
+        println!("Evaluation: {}", evaluation.to_string());
+        let evaluation_tree = maybe_tree.expect("Game should still be in progress.");
+        let best_moves = evaluation_tree.get_moves().expect("Guaranteed to be on a move node.");
+        println!("Best Moves: {}", best_moves.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", "));
+        if matches.is_present("Full Tree") {
+            println!("Optimal Tree: {}", evaluation_tree.to_pretty_string(|x| Solver::difference_heuristic(x, 3.5)));
         }
     } else if let Some(matches) = matches.subcommand_matches("play") {
         let max_depth_to_brute_force = match matches.value_of("Max Depth to Brute Force") {
@@ -212,53 +189,23 @@ fn main() {
             outcome,
         );
     } else if let Some(matches) = matches.subcommand_matches("tree") { 
-        match (matches.value_of("Next to Act Board"), matches.value_of("Next to Act Opponent's Board"), matches.value_of("Roll")) {
-            (Some(player_board), Some(opponent_board), Some(roll)) => {
-                match Board::from_string(player_board.to_string()) {
-                    Ok(player_board) => {
-                        match Board::from_string(opponent_board.to_string()) {
-                            Ok(opponent_board) => {
-                                match roll.parse::<u8>() {
-                                    Ok(die_value) => {
-                                        let die = match Die::new(die_value) {
-                                            Ok(die) => die,
-                                            Err(e) => {
-                                                println!("Invalid roll: {}", e);
-                                                return;
-                                            }
-                                        };
-                                        let mut game = Node::new(player_board, opponent_board, NodeType::Move(Player::Player1, die));
-                                        match matches.value_of("Heuristic Depth") {
-                                            Some(depth_string) => {
-                                                let depth = depth_string.parse::<usize>().unwrap();
-                                                game.build_n_moves_up_to_symmetry(depth);
-                                                println!("{}", game.to_pretty_string(|x| Solver::difference_heuristic(x, 3.5)));
-                                            },
-                                            None => {
-                                                game.build_entire_tree_up_to_symmetry();
-                                                println!("{}", game.to_pretty_string(|x| Solver::difference_heuristic(x, 3.5)));
-                                            }
-                                        };
-                                    },
-                                    Err(e) => {
-                                        println!("Invalid roll: {}", e);
-                                    }
-                                }                                
-                            },
-                            Err(_) => println!("Invalid Board"),
-                        }
-                    },
-                    _ => println!("Invalid board.")
-                }
+        let (player_board, opponent_board, die) = match unpack_next_to_act_opponent_and_roll(matches) {
+            Ok((x, y, z)) => (x, y, z),
+            Err(e) => {
+                println!("{}", e);
+                return;
+            }
+        };
+        let mut game = Node::new(player_board, opponent_board, NodeType::Move(Player::Player1, die));
+        match matches.value_of("Heuristic Depth") {
+            Some(depth_string) => {
+                let depth = depth_string.parse::<usize>().unwrap();
+                game.build_n_moves_up_to_symmetry(depth);
+                println!("{}", game.to_pretty_string(|x| Solver::difference_heuristic(x, 3.5)));
             },
-            (None, _, _) => {
-                println!("Missing Next to Act Player's board!");
-            },
-            (_, None, _) => {
-                println!("Missing Next to Act Opponent's board!");
-            },
-            (_, _, None) => {
-                println!("Missing Roll!");
+            None => {
+                game.build_entire_tree_up_to_symmetry();
+                println!("{}", game.to_pretty_string(|x| Solver::difference_heuristic(x, 3.5)));
             }
         }
     } else {
@@ -270,6 +217,46 @@ fn get_int_from_arg_or_else(arg: Option<&str>, default: usize) -> usize {
     match arg {
         Some(arg) => arg.parse::<usize>().unwrap(),
         None => default
+    }
+}
+
+fn unpack_next_to_act_opponent_and_roll(matches: &ArgMatches) -> Result<(Board, Board, Die), String> {
+    match (matches.value_of("Next to Act Board"), matches.value_of("Next to Act Opponent's Board"), matches.value_of("Roll")) {
+        (Some(player_board), Some(opponent_board), Some(roll)) => {
+            match Board::from_string(player_board.to_string()) {
+                Ok(player_board) => {
+                    match Board::from_string(opponent_board.to_string()) {
+                        Ok(opponent_board) => {
+                            match roll.parse::<u8>() {
+                                Ok(die_value) => {
+                                    let die = match Die::new(die_value) {
+                                        Ok(die) => die,
+                                        Err(e) => {
+                                            return Err(format!("Invalid roll: {}", e));
+                                        }
+                                    };
+                                    return Ok((player_board, opponent_board, die));
+                                },
+                                Err(e) => {
+                                    return Err(format!("Invalid roll: {}", e));
+                                }
+                            }
+                        },
+                        _ => {return Err("Invalid player board.".to_string());}
+                    }
+                },
+                _ => {return Err("Invalid player board.".to_string());}
+            }
+        },
+        (None, _, _) => {
+            return Err("Missing Next to Act Player's board!".to_string());
+        },
+        (_, None, _) => {
+            return Err("Missing Next to Act Opponent's board!".to_string());
+        },
+        (_, _, None) => {
+            return Err("Missing Roll!".to_string());
+        }
     }
 }
 
