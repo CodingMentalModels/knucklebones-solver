@@ -101,15 +101,15 @@ fn main() {
         let (maybe_tree, evaluation) = solver
             .get_evaluation_tree(SolverMode::Hybrid(max_depth_to_brute_force, (depth, |x| Solver::difference_heuristic(x, 3.5))))
             .expect("Evaluation tree should be constructable.");
-        println!("Player 1 Board: {}", game.get_player_1_board());
-        println!("Player 2 Board: {}", game.get_player_2_board());
+        println!("Player 1 Board:\n{}\n", game.get_player_1_board());
+        println!("Player 2 Board:\n{}\n", game.get_player_2_board());
         println!("Roll: {}", die.to_string());
         println!("Evaluation: {}", evaluation.to_string());
         let evaluation_tree = maybe_tree.expect("Game should still be in progress.");
         let best_moves = evaluation_tree.get_moves().expect("Guaranteed to be on a move node.");
         println!("Best Moves: {}", best_moves.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", "));
         if matches.is_present("Full Tree") {
-            println!("Optimal Tree: {}", evaluation_tree.to_pretty_string(|x| Solver::difference_heuristic(x, 3.5)));
+            println!("\nOptimal Tree:\n{}", evaluation_tree.to_pretty_string(|x| Solver::difference_heuristic(x, 3.5)));
         }
     } else if let Some(matches) = matches.subcommand_matches("play") {
         let max_depth_to_brute_force = match matches.value_of("Max Depth to Brute Force") {
