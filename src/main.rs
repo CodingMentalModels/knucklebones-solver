@@ -196,18 +196,23 @@ fn main() {
                 return;
             }
         };
-        let mut game = Node::new(player_board, opponent_board, NodeType::Move(Player::Player1, die));
+        let mut game = Node::new(player_board.clone(), opponent_board.clone(), NodeType::Move(Player::Player1, die));
         match matches.value_of("Heuristic Depth") {
             Some(depth_string) => {
                 let depth = depth_string.parse::<usize>().unwrap();
                 game.build_n_moves_up_to_symmetry(depth);
-                println!("{}", game.to_pretty_string(|x| Solver::difference_heuristic(x, 3.5)));
             },
             None => {
                 game.build_entire_tree_up_to_symmetry();
-                println!("{}", game.to_pretty_string(|x| Solver::difference_heuristic(x, 3.5)));
             }
         }
+        println!(
+            "Player Board: \n{}\n\nOpponent Board: \n{}\n\nRoll: {}\n\nTree:\n{}",
+            player_board.to_string(),
+            opponent_board.to_string(),
+            die.to_string(),
+            game.to_pretty_string(|x| Solver::difference_heuristic(x, 3.5)),
+        );
     } else {
         println!("Missing subcommand!");  
     }

@@ -64,19 +64,16 @@ Sources of error in the heuristic:
 
 ## Insights
 
-* Interesting situation: where should we put our 6?  On the one hand, (0, 2) keeps triple 6 outs alive; on the other, (1, 1) gives us 556 and 665 outs.  
-```
-./target/debug/knucklebones-solver.exe solve -d 5 -t 
+### Game
 
-"35_
-___
-___"
+* Prefer doubling to not, prefer tripling to doubling.
+    * Exception: If you're winning and up tempi, consider diversifying instead of doubling or tripling to ensure you end the game quickly.
+* Prefer eliminations to doubling or tripling
+    * Exception: tripling 5's or 6's may be worth it unless there are endgame considerations.
+* Prefer playing your dice on columns where opponent already has dice.  This forces opponent to fill up their column with dice if they want to eliminate yours, which then gives you a hiding place for valuable dice in the future.
+* Hide your good dice behind your opponents' full columns to prevent elimination.
 
-"__4
-__4
-___" 6
-```
-Answer: (1, 1) is better, because if opponent rolls a 6, we make him choose between eliminating ours and doubling his.  (0, 2) gives him an easy choice.
+### Heuristic
 
 * The overvaluing of position seems to be a more important effect than the undervaluing of doubles and triples.  e.g. looking at a simple case below at depth 1 vs. depth 5, depth 5 is much closer to being even than depth 1.
 ```
@@ -91,7 +88,7 @@ ___
 ___" 1
 ```
 
-* Also, running the solver at an even depth vs. an odd depth makes a difference, since for odd depths we're giving Player 1 one more opportunity to take advantage of doubles and triples.  We should tend to prefer even depths to try to balance out this effect.  e.g. the position above evaluates to `-2.28` when run on depth `5`, whereas it evaluates to `-7.63` on depth `4`.  
+* Also, running the solver at an even depth vs. an odd depth makes a difference, since for odd depths we're giving Player 1 one more opportunity to take advantage of doubles and triples than player 2.  We should tend to prefer even depths to try to balance out this effect.  
 
 ## Notes & Improvements
 
